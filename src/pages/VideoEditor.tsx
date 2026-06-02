@@ -411,6 +411,15 @@ function Canvas({ aspect, videoUrl, videoRef, scene, overlays, selectedId, playi
 // Unified editable element — handles scene elements (type) and overlays (kind)
 function EditItem({ item, cw, selected, editing, onSelect, onStartMove, onStartResize, onStartEdit, onCommitText }: any) {
   const isText = item.type === 'text' || item.kind === 'text' || item.kind === 'logo'
+  const textRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (editing && textRef.current) {
+      textRef.current.focus()
+      document.execCommand('selectAll', false, undefined)
+    }
+  }, [editing])
+
   const geo: React.CSSProperties = {
     position: 'absolute', left: `${item.x}%`, top: `${item.y}%`, width: `${item.w}%`,
     transform: `translate(-50%,-50%) rotate(${item.rotation || 0}deg)`, opacity: item.opacity ?? 1,
@@ -423,10 +432,10 @@ function EditItem({ item, cw, selected, editing, onSelect, onStartMove, onStartR
     textShadow: '0 1px 16px rgba(0,0,0,.75)', lineHeight: 1.08, letterSpacing: '-0.01em', outline: editing ? '1px solid var(--accent)' : 'none', ...extra,
   })
   const editable = (style: React.CSSProperties, content: string) => (
-    <div contentEditable={editing} suppressContentEditableWarning
+    <div ref={textRef} contentEditable={editing} suppressContentEditableWarning
       onBlur={(e) => onCommitText(e.currentTarget.textContent || '')}
       onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); (e.target as HTMLElement).blur() } }}
-      style={style}>{content}</div>
+      style={{ ...style, cursor: editing ? 'text' : 'inherit' }}>{content}</div>
   )
 
   let inner: React.ReactNode = null

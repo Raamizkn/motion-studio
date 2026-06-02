@@ -22,10 +22,13 @@ RUN apt-get update && apt-get install -y \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
-# Tell puppeteer/hyperframes to use system Chromium (skip its own download)
+# Create a chromium wrapper to enforce --no-sandbox for Docker (root user)
+RUN echo '#!/bin/sh\nexec /usr/bin/chromium --no-sandbox --disable-setuid-sandbox "$@"' > /usr/bin/chromium-wrapper && chmod +x /usr/bin/chromium-wrapper
+
+# Tell puppeteer/hyperframes to use the wrapper
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
-ENV CHROME_PATH=/usr/bin/chromium
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-wrapper
+ENV CHROME_PATH=/usr/bin/chromium-wrapper
 
 WORKDIR /app
 
