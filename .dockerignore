@@ -1,0 +1,5 @@
+node_modules
+.renders
+dist
+.claude
+*.local

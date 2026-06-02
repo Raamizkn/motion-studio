@@ -1,0 +1,86 @@
+/* ── Imagine Art · Motion Studio design tokens ─────────────────────────────
+   Mapped 1:1 to the ImagineArt Design System V-3 (dark theme).
+   Brand purple #8A3FFC · neutral ramp · Inter/Outfit · no off-brand accents. */
+
+:root {
+  /* Imagine purple ramp */
+  --imagine-40: #be95ff;
+  --imagine-50: #a56eff;
+  --imagine-60: #8a3ffc; /* brand */
+  --imagine-70: #6929c4;
+  --imagine-90: #31135e;
+
+  /* Neutral ramp */
+  --n-0: #ffffff;
+  --n-40: #d1d1d1;
+  --n-50: #bdbdbd;
+  --n-60: #757575;
+  --n-70: #3d3d3d;
+  --n-80: #2e2e2e;
+  --n-90: #212121;
+  --n-100: #171717;
+  --n-110: #0f0f0f;
+  --n-120: #000000;
+
+  /* Surfaces (dark) */
+  --bg: #0f0f0f;
+  --bg-elev: #171717;
+  --surface: #1a1a1a;
+  --surface-2: #202020;
+  --surface-3: #2a2a2a;
+  --surface-hover: #242424;
+
+  /* Borders */
+  --border: #232323;
+  --border-strong: #333333;
+  --border-faint: #1c1c1c;
+
+  /* Text */
+  --text: #ffffff;
+  --text-2: #d1d1d1;
+  --text-3: #9a9a9a;
+  --text-4: #6a6a6a;
+
+  /* Brand accent */
+  --accent: #8a3ffc;
+  --accent-2: #a56eff;
+  --accent-soft: rgba(138, 63, 252, 0.16);
+  --accent-glow: rgba(138, 63, 252, 0.45);
+  --accent-grad: linear-gradient(135deg, #a56eff 0%, #8a3ffc 100%);
+
+  /* lime/glow tokens remapped to brand (single accent across chrome) */
+  --lime: #a56eff;
+  --lime-soft: rgba(138, 63, 252, 0.16);
+  --lime-glow: rgba(138, 63, 252, 0.45);
+
+  /* Status (DS semantic) */
+  --green: #42be65;
+  --amber: #f1c21b;
+  --red: #da1e28;
+  --blue: #4ea0f2;
+
+  /* Radius (DS roundness) */
+  --r-xs: 4px;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 20px;
+  --r-pill: 9999px;
+
+  /* Shadow (DS elevation, dark) */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.55), 0 0 0 1px var(--border);
+
+  /* Typography */
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Google Sans', 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-mono: 'Sometype Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Layout */
+  --sidebar-w: 240px;
+  --topbar-h: 56px;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
