@@ -286,6 +286,7 @@ export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: str
   const editor = useStore((s) => s.editors[id])
   const store = useStore()
   const rulerRef = useRef<HTMLDivElement | null>(null)
+  const gutterRef = useRef<HTMLDivElement | null>(null)
   const [h, setH] = useState(196)
   const dragRef = useRef<{ startY: number; startH: number } | null>(null)
   if (!editor) return null
@@ -313,7 +314,7 @@ export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: str
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* gutter */}
-        <div style={{ width: 92, flex: 'none', borderRight: '1px solid var(--border)' }}>
+        <div ref={gutterRef} style={{ width: 92, flex: 'none', borderRight: '1px solid var(--border)', overflowY: 'hidden' }}>
           <div style={{ height: 22 }} />
           {TRACK_LABELS.map((t) => (
             <div key={t.group} style={{ height: 42, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', fontSize: 9.5, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', borderTop: '1px solid var(--border-faint)' }}>
@@ -323,7 +324,7 @@ export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: str
         </div>
 
         {/* tracks scroll area */}
-        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', position: 'relative' }}>
+        <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} onScroll={(e) => { if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop }}>
           <div style={{ width: Math.max(W, 600), position: 'relative' }}>
             {/* ruler */}
             <div ref={rulerRef} onPointerDown={(e) => { seekFromEvent(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }} onPointerMove={(e) => { if (e.buttons === 1) seekFromEvent(e.clientX) }} style={{ height: 22, position: 'relative', cursor: 'text', borderBottom: '1px solid var(--border-faint)' }}>
