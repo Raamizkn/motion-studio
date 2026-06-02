@@ -18,6 +18,7 @@ import {
 } from './editorParts'
 import { editorCommandAI } from '../ai'
 import type { EditCall } from '../ai'
+import { meshBg } from '../sceneModel'
 
 export function VideoEditor() {
   const { id = '' } = useParams()
@@ -77,30 +78,42 @@ export function VideoEditor() {
 
   const duration = editor?.duration || project?.config.durationSec || 30
 
-  // playback loop
+  // playback clock — driven by the real <video> when present, else a timer
   useEffect(() => {
     if (!playing) return
     let last = performance.now()
     const tick = (now: number) => {
-      const dt = (now - last) / 1000
-      last = now
-      setTime((t) => {
-        const nt = t + dt
-        if (nt >= duration) { setPlaying(false); return 0 }
-        return nt
-      })
+      const v = videoRef.current
+      if (v && videoUrl) {
+        setTime(v.currentTime)
+        if (v.ended || v.currentTime >= duration - 0.02) { setPlaying(false); return }
+      } else {
+        const dt = (now - last) / 1000
+        last = now
+        setTime((t) => { const nt = t + dt; if (nt >= duration) { setPlaying(false); return duration } return nt })
+      }
       rafRef.current = requestAnimationFrame(tick)
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current!)
-  }, [playing, duration])
+  }, [playing, duration, videoUrl])
 
-  // sync real video element
+  // play / pause the real video element
   useEffect(() => {
     const v = videoRef.current
     if (!v || !videoUrl) return
-    if (playing) { v.play().catch(() => {}) } else { v.pause(); if (Math.abs(v.currentTime - time) > 0.2) v.currentTime = time }
-  }, [playing, time, videoUrl])
+    if (playing) v.play().catch(() => {})
+    else v.pause()
+  }, [playing, videoUrl])
+
+  // when paused/scrubbing, paint the exact frame at the playhead
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !videoUrl || playing) return
+    if (Math.abs(v.currentTime - time) > 0.04) {
+      try { v.currentTime = Math.min(time, duration - 0.02) } catch { /* not seekable yet */ }
+    }
+  }, [time, playing, videoUrl, duration])
 
   // keyboard
   useEffect(() => {
@@ -118,8 +131,27 @@ export function VideoEditor() {
   }
 
   const aspect = project.config.aspect
-  const currentClip = editor.clips.find((c) => time >= c.start && time < c.start + c.duration) || editor.clips[0]
-  const sel = editor.overlays.find((o) => o.id === editor.selectedId) || null
+  const currentScene = editor.scenes.find((s) => time >= s.start && time < s.end) || editor.scenes[0]
+  // selection can be a scene element (in the current scene) or a persistent overlay
+  const selSceneEl = currentScene?.elements.find((e) => e.id === editor.selectedId) || null
+  const selOverlay = editor.overlays.find((o) => o.id === editor.selectedId) || null
+  const sel: any = selSceneEl || selOverlay
+  const selIsOverlay = !!selOverlay
+  const selName = selSceneEl ? selSceneEl.role : selOverlay ? (editor.layers.find((l) => l.id === selOverlay.id)?.name || selOverlay.text || selOverlay.kind) : null
+  const selIsText = sel ? (sel.type === 'text' || sel.kind === 'text' || sel.kind === 'logo' || (sel.type === 'shape' && sel.text != null)) : false
+
+  // route an edit to the right store slice based on what's selected
+  const patchSel = (patch: any) => { if (!sel) return; selIsOverlay ? store.updateOverlay(id, sel.id, patch, true) : store.updateSceneElement(id, sel.id, patch, true) }
+  const moveItem = (itemId: string, patch: any) => {
+    if (editor.overlays.some((o) => o.id === itemId)) store.updateOverlay(id, itemId, patch)
+    else store.updateSceneElement(id, itemId, patch)
+  }
+  const textItem = (itemId: string, text: string) => {
+    if (editor.overlays.some((o) => o.id === itemId)) store.updateOverlay(id, itemId, { text }, true)
+    else store.updateSceneElement(id, itemId, { text }, true)
+  }
+  const deleteSel = () => { if (!sel) return; selIsOverlay ? store.deleteOverlay(id, sel.id) : store.deleteSceneElement(id, sel.id) }
+  const duplicateSel = () => { if (!sel) return; selIsOverlay ? store.duplicateOverlay(id, sel.id) : store.duplicateSceneElement(id, sel.id) }
 
   const startExportRender = async () => {
     setRendering(true); setProgress(0); setRenderErr(null)
@@ -133,10 +165,11 @@ export function VideoEditor() {
     setChat((c) => [...c, userMsg, pending])
 
     const result = await editorCommandAI(prompt, context, sel, editor.overlays, project.config.aspect)
-    const applied = applyEditCalls(result.calls, editor, sel, project.config.aspect, {
-      updateOverlay: (oid, patch) => store.updateOverlay(id, oid, patch, true),
+    const applied = applyEditCalls(result.calls, { overlays: editor.overlays, scene: currentScene }, sel, project.config.aspect, {
+      patch: (eid, p) => moveItem(eid, p),
       addOverlay: (ov) => store.addOverlay(id, ov),
-      deleteOverlay: (oid) => store.deleteOverlay(id, oid),
+      addSceneElement: (el) => currentScene && store.addSceneElement(id, currentScene.id, el),
+      remove: (eid) => { editor.overlays.some((o) => o.id === eid) ? store.deleteOverlay(id, eid) : store.deleteSceneElement(id, eid) },
     })
 
     const aiMsg: ChatMessage = {
@@ -171,7 +204,7 @@ export function VideoEditor() {
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {/* LEFT layers */}
         {leftOpen ? (
-          <LayerPanel id={id} onCollapse={() => setLeftOpen(false)} />
+          <LayerPanel id={id} scene={currentScene} onCollapse={() => setLeftOpen(false)} />
         ) : (
           <button className="btn icon ghost" onClick={() => setLeftOpen(true)} style={{ alignSelf: 'flex-start', margin: 8 }} aria-label="Open layers"><Icon name="layers" size={18} /></button>
         )}
@@ -183,12 +216,14 @@ export function VideoEditor() {
               aspect={aspect}
               videoUrl={videoUrl}
               videoRef={videoRef}
-              seed={currentClip?.seed}
+              scene={currentScene}
               overlays={editor.overlays}
               selectedId={editor.selectedId}
+              playing={playing}
               onSelect={(oid: string | null) => store.selectElement(id, oid)}
-              onMove={(oid: string, patch: Partial<OverlayElement>) => store.updateOverlay(id, oid, patch)}
+              onMove={moveItem}
               onMoveEnd={() => store.snapshot(id)}
+              onText={textItem}
             />
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
             {renderErr && (
@@ -201,15 +236,15 @@ export function VideoEditor() {
           </div>
 
           {/* contextual toolbar */}
-          {sel && <ContextualToolbar el={sel} onChange={(patch) => store.updateOverlay(id, sel.id, patch, true)} onDelete={() => store.deleteOverlay(id, sel.id)} />}
+          {sel && <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />}
 
           {/* AI prompt bar */}
-          <AIPromptBar selected={!!sel} onRun={runAI} />
+          <AIPromptBar selectedName={selName} onRun={runAI} />
         </div>
 
         {/* RIGHT chat */}
         {rightOpen ? (
-          <AIChatPanel chat={chat} onCollapse={() => setRightOpen(false)} onRun={(p) => runAI(p, 'Whole video')} />
+          <AIChatPanel chat={chat} selectedName={selName} onCollapse={() => setRightOpen(false)} onRun={(p) => runAI(p, selName ? 'Selected element' : 'Whole video')} />
         ) : (
           <button className="btn icon ghost" onClick={() => setRightOpen(true)} style={{ alignSelf: 'flex-start', margin: 8 }} aria-label="Open AI"><Icon name="sparkle" size={18} /></button>
         )}
@@ -289,84 +324,163 @@ function useFit(ratio: number) {
   return { outerRef, box }
 }
 
-function Canvas({ aspect, videoUrl, videoRef, seed, overlays, selectedId, onSelect, onMove, onMoveEnd }: any) {
+function Canvas({ aspect, videoUrl, videoRef, scene, overlays, selectedId, playing, onSelect, onMove, onMoveEnd, onText }: any) {
   const ratio = ASPECT_RATIO[aspect as AspectRatio]
   const { outerRef, box } = useFit(ratio)
   const wrapRef = useRef<HTMLDivElement | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; rect: DOMRect } | null>(null)
+  const resize = useRef<{ id: string; cx: number; cy: number; startDist: number; startW: number; startFont: number; isText: boolean } | null>(null)
+  const cw = box.w || 640
+  const previewing = !!videoUrl && playing
 
-  const onPointerDown = (e: React.PointerEvent, o: OverlayElement) => {
+  const startMove = (e: React.PointerEvent, item: any) => {
     e.stopPropagation()
-    onSelect(o.id)
-    const rect = wrapRef.current!.getBoundingClientRect()
-    drag.current = { id: o.id, sx: e.clientX, sy: e.clientY, ox: o.x, oy: o.y, rect }
-    ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    onSelect(item.id)
+    drag.current = { id: item.id, sx: e.clientX, sy: e.clientY, ox: item.x, oy: item.y, rect: wrapRef.current!.getBoundingClientRect() }
+    wrapRef.current?.setPointerCapture(e.pointerId)
+  }
+  const startResize = (e: React.PointerEvent, item: any, isText: boolean) => {
+    e.stopPropagation()
+    onSelect(item.id)
+    const r = (e.currentTarget as HTMLElement).parentElement!.getBoundingClientRect()
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2
+    resize.current = { id: item.id, cx, cy, startDist: Math.hypot(e.clientX - cx, e.clientY - cy) || 1, startW: item.w, startFont: item.fontSize || 40, isText }
+    wrapRef.current?.setPointerCapture(e.pointerId)
   }
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!drag.current) return
-    const d = drag.current
-    const dx = ((e.clientX - d.sx) / d.rect.width) * 100
-    const dy = ((e.clientY - d.sy) / d.rect.height) * 100
-    onMove(d.id, { x: Math.max(0, Math.min(100, d.ox + dx)), y: Math.max(0, Math.min(100, d.oy + dy)) })
+    if (resize.current) {
+      const r = resize.current
+      const scale = Math.max(0.12, Math.hypot(e.clientX - r.cx, e.clientY - r.cy) / r.startDist)
+      const patch: any = { w: Math.max(3, Math.min(100, +(r.startW * scale).toFixed(1))) }
+      if (r.isText) patch.fontSize = Math.max(8, Math.min(260, Math.round(r.startFont * scale)))
+      onMove(r.id, patch)
+    } else if (drag.current) {
+      const d = drag.current
+      onMove(d.id, { x: Math.max(0, Math.min(100, d.ox + ((e.clientX - d.sx) / d.rect.width) * 100)), y: Math.max(0, Math.min(100, d.oy + ((e.clientY - d.sy) / d.rect.height) * 100)) })
+    }
   }
-  const onPointerUp = () => { if (drag.current) { drag.current = null; onMoveEnd() } }
+  const onPointerUp = () => {
+    if (resize.current || drag.current) { resize.current = null; drag.current = null; onMoveEnd() }
+  }
+
+  const items = [...(scene?.elements || []).map((e: any) => ({ ...e, _scene: true })), ...overlays.map((o: any) => ({ ...o, _scene: false }))]
 
   return (
     <div ref={outerRef} style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
     <div
       ref={wrapRef}
       data-tour="canvas"
-      onClick={() => onSelect(null)}
+      onPointerDown={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset.bg === '1') onSelect(null) }}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       style={{ position: 'relative', width: box.w || '100%', height: box.h || undefined, aspectRatio: box.w ? undefined : String(ratio), borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}
     >
-      {videoUrl ? (
-        <video ref={videoRef} src={videoUrl} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} playsInline muted />
-      ) : seed ? (
-        <ScenePreview seed={seed} ratio={ratio} />
-      ) : (
-        <div className="shimmer" style={{ position: 'absolute', inset: 0 }} />
-      )}
+      {/* MP4 preview (mounted always for the ref; shown only while playing) */}
+      <video
+        ref={videoRef}
+        src={videoUrl || undefined}
+        preload="auto"
+        playsInline
+        muted
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', background: '#0a0a0c', display: previewing ? 'block' : 'none' }}
+      />
 
-      {/* overlays */}
-      {overlays.map((o: OverlayElement) => (
-        <div
-          key={o.id}
-          onPointerDown={(e) => onPointerDown(e, o)}
-          onClick={(e) => { e.stopPropagation(); onSelect(o.id) }}
-          style={{
-            position: 'absolute',
-            left: `${o.x}%`,
-            top: `${o.y}%`,
-            width: `${o.w}%`,
-            transform: `translate(-50%,-50%) rotate(${o.rotation}deg)`,
-            opacity: o.opacity,
-            cursor: 'move',
-            outline: selectedId === o.id ? '2px solid var(--accent)' : '1px dashed transparent',
-            outlineOffset: 2,
-            padding: 4,
-            borderRadius: 4,
-          }}
-        >
-          {o.kind === 'text' ? (
-            <div style={{ fontSize: `calc(${(o.fontSize || 40) / 12}cqw)`, fontWeight: o.bold ? 800 : 500, fontStyle: o.italic ? 'italic' : 'normal', color: o.color || '#fff', textAlign: o.align || 'center', textShadow: '0 1px 16px rgba(0,0,0,.8)', lineHeight: 1.1, containerType: 'inline-size' } as any}>{o.text}</div>
-          ) : o.kind === 'logo' ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, background: 'rgba(0,0,0,.4)', color: o.color, fontWeight: 800, fontSize: 14, letterSpacing: '.05em' }}>{o.text}</div>
-          ) : (
-            <div style={{ width: '100%', aspectRatio: '16/9', borderRadius: 10, background: 'rgba(255,255,255,.08)', border: '1px solid rgba(255,255,255,.18)' }} />
-          )}
-          {selectedId === o.id && ['nw', 'ne', 'sw', 'se'].map((h) => (
-            <span key={h} style={{ position: 'absolute', width: 9, height: 9, background: '#fff', border: '1px solid var(--accent)', borderRadius: 2, ...handlePos(h) }} />
-          ))}
-        </div>
-      ))}
+      {/* Live editable scene */}
+      <div data-bg="1" style={{ position: 'absolute', inset: 0, background: scene ? meshBg(scene.palette) : '#0a0a0c', display: previewing ? 'none' : 'block' }}>
+        {items.map((item) => (
+          <EditItem
+            key={item.id}
+            item={item}
+            cw={cw}
+            selected={selectedId === item.id}
+            editing={editingId === item.id}
+            onSelect={onSelect}
+            onStartMove={startMove}
+            onStartResize={startResize}
+            onStartEdit={() => setEditingId(item.id)}
+            onCommitText={(t: string) => { setEditingId(null); onText(item.id, t) }}
+          />
+        ))}
+      </div>
     </div>
     </div>
   )
 }
+
+// Unified editable element — handles scene elements (type) and overlays (kind)
+function EditItem({ item, cw, selected, editing, onSelect, onStartMove, onStartResize, onStartEdit, onCommitText }: any) {
+  const isText = item.type === 'text' || item.kind === 'text' || item.kind === 'logo'
+  const geo: React.CSSProperties = {
+    position: 'absolute', left: `${item.x}%`, top: `${item.y}%`, width: `${item.w}%`,
+    transform: `translate(-50%,-50%) rotate(${item.rotation || 0}deg)`, opacity: item.opacity ?? 1,
+    outline: selected ? '2px solid var(--accent)' : '1px dashed transparent', outlineOffset: 2, borderRadius: 4,
+    cursor: editing ? 'text' : 'move', touchAction: 'none',
+  }
+  const textStyle = (extra: React.CSSProperties = {}): React.CSSProperties => ({
+    fontSize: (item.fontSize || 40) / 1000 * cw, fontWeight: item.bold ? 800 : 500, fontStyle: item.italic ? 'italic' : 'normal',
+    color: item.color || '#fff', textAlign: item.align || 'center', fontFamily: `${item.fontFamily || 'Inter'}, sans-serif`,
+    textShadow: '0 1px 16px rgba(0,0,0,.75)', lineHeight: 1.08, letterSpacing: '-0.01em', outline: editing ? '1px solid var(--accent)' : 'none', ...extra,
+  })
+  const editable = (style: React.CSSProperties, content: string) => (
+    <div contentEditable={editing} suppressContentEditableWarning
+      onBlur={(e) => onCommitText(e.currentTarget.textContent || '')}
+      onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); (e.target as HTMLElement).blur() } }}
+      style={style}>{content}</div>
+  )
+
+  let inner: React.ReactNode = null
+  if (item.kind === 'image' || (item.type === 'image' && item.src)) {
+    inner = <img src={item.src} alt={item.text || 'asset'} draggable={false} style={{ width: '100%', height: 'auto', display: 'block', objectFit: 'contain', pointerEvents: 'none' }} />
+  } else if (item.type === 'text' || item.kind === 'text') {
+    inner = editable(textStyle(), item.text || '')
+  } else if (item.kind === 'logo') {
+    inner = editable({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: 'rgba(0,0,0,.4)', color: item.color || '#fff', fontWeight: 800, fontSize: (item.fontSize || 24) / 1000 * cw, letterSpacing: '.05em', outline: editing ? '1px solid var(--accent)' : 'none' }, item.text || 'LOGO')
+  } else if (item.type === 'graphic') {
+    inner = <Graphic item={item} cw={cw} />
+  } else {
+    // shape / card (may have centered text)
+    const h = item.h ? (item.h / 100) * (cw / (16 / 9)) : undefined
+    inner = (
+      <div style={{ width: '100%', height: h, minHeight: h ? undefined : 40, background: item.glass ? 'rgba(255,255,255,.08)' : item.bg || 'rgba(255,255,255,.08)', border: item.border || '1px solid rgba(255,255,255,.18)', borderRadius: item.radius ?? 16, backdropFilter: item.glass ? 'blur(14px)' : undefined, boxShadow: item.glass ? undefined : (item.bg ? '0 20px 60px rgba(0,0,0,.4)' : undefined), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {item.text != null && item.text !== '' && editable({ ...textStyle({ textShadow: 'none' }), padding: '0 8px' }, item.text)}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      onPointerDown={(e) => !editing && onStartMove(e, item)}
+      onDoubleClick={(e) => { e.stopPropagation(); if (isText) { onSelect(item.id); onStartEdit() } }}
+      style={geo}
+    >
+      {inner}
+      {selected && !editing && ['nw', 'ne', 'sw', 'se'].map((h) => (
+        <span key={h} onPointerDown={(e) => startResizeStop(e, () => onStartResize(e, item, isText))} style={{ position: 'absolute', width: 12, height: 12, background: '#fff', border: '1.5px solid var(--accent)', borderRadius: 3, cursor: h === 'nw' || h === 'se' ? 'nwse-resize' : 'nesw-resize', touchAction: 'none', ...handlePos(h) }} />
+      ))}
+    </div>
+  )
+}
+function startResizeStop(e: React.PointerEvent, fn: () => void) { e.stopPropagation(); fn() }
+
+function Graphic({ item, cw }: any) {
+  const h = item.h ? (item.h / 100) * (cw / (16 / 9)) : 200
+  const accent = (item.border || '').match(/#[0-9a-fA-F]{3,8}/)?.[0] || '#8a3ffc'
+  if (item.graphic === 'globe') {
+    return (
+      <div style={{ width: '100%', height: h, borderRadius: '50%', border: `2px solid ${accent}aa`, position: 'relative', boxShadow: `inset 0 0 ${h / 3}px ${accent}55, 0 0 ${h / 4}px ${accent}44` }}>
+        <div style={{ position: 'absolute', inset: '8%', borderRadius: '50%', border: `1px solid ${accent}55` }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${accent}66`, transform: 'rotateY(70deg)' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: `1px solid ${accent}66`, transform: 'rotateX(70deg)' }} />
+      </div>
+    )
+  }
+  if (item.graphic === 'ring') return <div style={{ width: '100%', height: h, borderRadius: '50%', border: item.border || `2px solid ${accent}` }} />
+  if (item.graphic === 'frame') return <div style={{ width: '100%', height: h, borderRadius: 20, background: item.bg || '#222', border: item.border }} />
+  return <div style={{ width: '100%', height: h, background: item.bg }} />
+}
 function handlePos(h: string): React.CSSProperties {
-  const m = -5
+  const m = -7
   return {
     top: h[0] === 'n' ? m : undefined, bottom: h[0] === 's' ? m : undefined,
     left: h[1] === 'w' ? m : undefined, right: h[1] === 'e' ? m : undefined,
@@ -396,86 +510,49 @@ function fmt(s: number) {
   return `${m}:${ss.toString().padStart(2, '0')}`
 }
 
-// ── Apply structured AI edit calls to the editor state ───────────────────────
+// ── Apply structured AI edit calls to scene elements + overlays ──────────────
 function applyEditCalls(
   calls: EditCall[],
-  editor: any,
-  selected: OverlayElement | null,
+  ctx: { overlays: OverlayElement[]; scene: any },
+  selected: any,
   aspect: AspectRatio,
-  ops: { updateOverlay: (id: string, patch: Partial<OverlayElement>) => void; addOverlay: (ov: Omit<OverlayElement, 'id'>) => string; deleteOverlay: (id: string) => void },
+  ops: { patch: (id: string, patch: any) => void; addOverlay: (ov: Omit<OverlayElement, 'id'>) => string; addSceneElement: (el: any) => void; remove: (id: string) => void },
 ): EditCall[] {
   const applied: EditCall[] = []
-  const resolveTarget = (t: string | undefined): OverlayElement | null => {
+  const pool: any[] = [...(ctx.scene?.elements || []), ...ctx.overlays]
+  const isText = (o: any) => o && (o.type === 'text' || o.kind === 'text' || o.kind === 'logo')
+  const resolve = (t: string | undefined): any => {
     if (!t || t === 'none') return null
-    if (t === 'selected') return selected || editor.overlays[0] || null
-    if (t === 'first') return editor.overlays[0] || null
-    if (t === 'last') return editor.overlays[editor.overlays.length - 1] || null
-    if (t === 'all_text') return editor.overlays.find((o: OverlayElement) => o.kind === 'text') || null
-    return editor.overlays.find((o: OverlayElement) => o.id === t) || null
+    if (t === 'selected') return selected || pool.find(isText) || pool[0] || null
+    if (t === 'first') return pool[0] || null
+    if (t === 'last') return pool[pool.length - 1] || null
+    if (t === 'all_text') return pool.find(isText) || null
+    return pool.find((o) => o.id === t) || null
   }
   for (const call of calls) {
     switch (call.tool) {
       case 'resize_element': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        const patch: Partial<OverlayElement> = {}
-        if (call.fontSize) patch.fontSize = Math.max(8, Math.min(200, call.fontSize))
-        if (call.width) patch.w = Math.max(5, Math.min(95, call.width))
-        ops.updateOverlay(tgt.id, patch)
-        applied.push(call)
-        break
+        const tgt = resolve((call as any).target); if (!tgt) break
+        const patch: any = {}
+        if (call.fontSize) patch.fontSize = Math.max(8, Math.min(240, call.fontSize))
+        if (call.width) patch.w = Math.max(4, Math.min(100, call.width))
+        ops.patch(tgt.id, patch); applied.push(call); break
       }
-      case 'position_element': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        ops.updateOverlay(tgt.id, { x: Math.max(0, Math.min(100, call.x)), y: Math.max(0, Math.min(100, call.y)) })
-        applied.push(call)
-        break
-      }
-      case 'set_color': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        ops.updateOverlay(tgt.id, { color: call.color })
-        applied.push(call)
-        break
-      }
-      case 'set_weight': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        ops.updateOverlay(tgt.id, { bold: !!call.bold })
-        applied.push(call)
-        break
-      }
-      case 'set_animation': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        ops.updateOverlay(tgt.id, { animation: call.animation })
-        applied.push(call)
-        break
-      }
+      case 'position_element': { const tgt = resolve((call as any).target); if (!tgt) break; ops.patch(tgt.id, { x: Math.max(0, Math.min(100, call.x)), y: Math.max(0, Math.min(100, call.y)) }); applied.push(call); break }
+      case 'set_color': { const tgt = resolve((call as any).target); if (!tgt) break; ops.patch(tgt.id, { color: call.color }); applied.push(call); break }
+      case 'set_weight': { const tgt = resolve((call as any).target); if (!tgt) break; ops.patch(tgt.id, { bold: !!call.bold }); applied.push(call); break }
+      case 'set_animation': { const tgt = resolve((call as any).target); if (!tgt) break; ops.patch(tgt.id, { anim: call.animation, animation: call.animation }); applied.push(call); break }
       case 'add_element': {
-        ops.addOverlay({
-          sceneId: editor.clips[editor.clips.length - 1]?.id || '',
-          kind: 'text',
-          text: call.text || 'New text',
-          x: 50, y: 80, w: 50, h: 14,
-          rotation: 0, opacity: 1, fontSize: 44, color: '#ffffff', align: 'center', bold: true,
-        })
-        applied.push(call)
-        break
+        // add a scene element to the current scene so it lives inside the video
+        if (ctx.scene) ops.addSceneElement({ id: `el_${Math.random().toString(36).slice(2)}`, role: (call.text || 'Text').slice(0, 18), type: 'text', text: call.text || 'New text', x: 50, y: 80, w: 50, rotation: 0, opacity: 1, fontSize: 44, color: '#ffffff', align: 'center', bold: true, anim: 'rise' })
+        else ops.addOverlay({ sceneId: '', kind: 'text', text: call.text || 'New text', x: 50, y: 80, w: 50, h: 14, rotation: 0, opacity: 1, fontSize: 44, color: '#fff', align: 'center', bold: true })
+        applied.push(call); break
       }
-      case 'delete_element': {
-        const tgt = resolveTarget((call as any).target)
-        if (!tgt) break
-        ops.deleteOverlay(tgt.id)
-        applied.push(call)
-        break
-      }
+      case 'delete_element': { const tgt = resolve((call as any).target); if (!tgt) break; ops.remove(tgt.id); applied.push(call); break }
       case 'add_subtitles':
       case 'tighten_transitions':
       case 'reformat':
-        applied.push(call)
-        break
+        applied.push(call); break
     }
   }
   return applied

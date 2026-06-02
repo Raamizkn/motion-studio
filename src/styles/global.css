@@ -262,3 +262,15 @@ textarea {
   border-color: var(--accent);
   background: #2a2a2a;
 }
+
+/* layer row hover-reveal buttons */
+.ms-rowbtn {
+  opacity: 0;
+  transition: opacity 0.12s, color 0.12s;
+}
+.ms-layerrow:hover .ms-rowbtn {
+  opacity: 1;
+}
+.ms-rowbtn:hover {
+  color: var(--text) !important;
+}

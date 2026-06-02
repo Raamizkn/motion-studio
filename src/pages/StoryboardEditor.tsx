@@ -68,6 +68,13 @@ export function StoryboardEditor() {
 
   const ratio = ASPECT_RATIO[project.config.aspect]
 
+  const regenerateAll = () => {
+    setApproved(false)
+    setStep(0)
+    setAiSource(null)
+    setGenerating(true)
+  }
+
   const onGenerateVideo = async () => {
     setConfirm(false)
     setStatus(project.id, 'rendering')
@@ -98,7 +105,7 @@ export function StoryboardEditor() {
           <span className="chip" style={{ cursor: 'default' }}>{project.frames.length} scenes</span>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn ghost sm" onClick={() => nav(`/studio/new`)}><Icon name="refresh" size={15} /> Regenerate</button>
+          <button className="btn ghost sm" onClick={regenerateAll}><Icon name="refresh" size={15} /> Regenerate</button>
           <button className="btn primary sm" disabled={!approved} onClick={() => setConfirm(true)}>
             Generate Video <Icon name="arrowRight" size={15} />
           </button>
@@ -164,7 +171,7 @@ export function StoryboardEditor() {
             <button className={`btn sm ${approved ? 'primary' : ''}`} onClick={() => setApproved(true)}>
               <Icon name="check" size={15} /> Looks good
             </button>
-            <button className="btn sm ghost" onClick={() => nav('/studio/new')}><Icon name="refresh" size={14} /> Regenerate all</button>
+            <button className="btn sm ghost" onClick={regenerateAll}><Icon name="refresh" size={14} /> Regenerate all</button>
           </div>
         </div>
       )}

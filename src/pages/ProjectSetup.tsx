@@ -36,8 +36,17 @@ export function ProjectSetup() {
   const [url, setUrl] = useState('')
   const [scraping, setScraping] = useState(false)
   const [scrapeErr, setScrapeErr] = useState(false)
-  const [assets, setAssets] = useState<{ id: string; name: string }[]>([])
+  const [assets, setAssets] = useState<{ id: string; name: string; type: string; dataUrl: string }[]>([])
   const [cat, setCat] = useState('All')
+
+  const ingestFiles = (files: File[]) => {
+    files.forEach((f) => {
+      const reader = new FileReader()
+      reader.onload = () =>
+        setAssets((a) => [...a, { id: Math.random().toString(36).slice(2), name: f.name, type: f.type, dataUrl: String(reader.result) }])
+      reader.readAsDataURL(f)
+    })
+  }
 
   const set = (patch: Partial<VideoProjectConfig>) => setCfg((c) => ({ ...c, ...patch }))
 
@@ -77,7 +86,7 @@ export function ProjectSetup() {
 
   const onGenerate = () => {
     const name = cfg.brand?.title ? `${cfg.brand.title} video` : cfg.prompt.slice(0, 32) || 'Untitled video'
-    const project = createProject(name, { ...cfg, assetIds: assets.map((a) => a.id) })
+    const project = createProject(name, { ...cfg, assetIds: assets.map((a) => a.id), assets })
     nav(`/studio/projects/${project.id}/storyboard?fresh=1`)
   }
 
@@ -288,21 +297,18 @@ export function ProjectSetup() {
               <label
                 style={{ display: 'grid', placeItems: 'center', gap: 6, padding: '22px', border: '1.5px dashed var(--border-strong)', borderRadius: 'var(--r-md)', cursor: 'pointer', color: 'var(--text-3)', background: 'var(--surface)' }}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  const files = Array.from(e.dataTransfer.files)
-                  setAssets((a) => [...a, ...files.map((f) => ({ id: Math.random().toString(36), name: f.name }))])
-                }}
+                onDrop={(e) => { e.preventDefault(); ingestFiles(Array.from(e.dataTransfer.files)) }}
               >
                 <Icon name="upload" size={22} />
                 <span style={{ fontSize: 13 }}>Drop brand assets — logos, images, clips, SVGs</span>
-                <input type="file" multiple hidden onChange={(e) => setAssets((a) => [...a, ...Array.from(e.target.files || []).map((f) => ({ id: Math.random().toString(36), name: f.name }))])} />
+                <input type="file" multiple accept="image/*" hidden onChange={(e) => ingestFiles(Array.from(e.target.files || []))} />
               </label>
               {assets.length > 0 && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
                   {assets.map((a) => (
-                    <span key={a.id} className="chip" style={{ cursor: 'default' }}>
-                      <Icon name="image" size={13} /> {a.name.slice(0, 18)}
+                    <span key={a.id} className="chip" style={{ cursor: 'default', paddingLeft: 4 }}>
+                      {a.dataUrl ? <img src={a.dataUrl} alt="" style={{ width: 18, height: 18, borderRadius: 4, objectFit: 'cover' }} /> : <Icon name="image" size={13} />}
+                      {a.name.slice(0, 16)}
                       <button onClick={() => setAssets((x) => x.filter((y) => y.id !== a.id))} aria-label="Remove" style={{ display: 'flex' }}>
                         <Icon name="close" size={12} />
                       </button>

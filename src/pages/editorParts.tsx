@@ -53,24 +53,24 @@ function LayerRow({ id, layer, kind, selectable, onDragStart, onDragOver, onDrop
   )
 }
 
-export function LayerPanel({ id, onCollapse }: { id: string; onCollapse: () => void }) {
+export function LayerPanel({ id, scene, onCollapse }: { id: string; scene: any; onCollapse: () => void }) {
   const editor = useStore((s) => s.editors[id])
   const store = useStore()
   const dragId = useRef<string | null>(null)
-  const overId = useRef<string | null>(null)
+  const elDragId = useRef<string | null>(null)
   if (!editor) return null
 
   const overlayKind = (lid: string) => editor.overlays.find((o) => o.id === lid)?.kind
-  const canvasLayers = editor.layers.filter((l) => l.group === 'overlays')
+  const overlayLayers = editor.layers.filter((l) => l.group === 'overlays')
   const trackLayers = editor.layers.filter((l) => l.group !== 'overlays')
 
   const dragProps = {
     onDragStart: (lid: string) => (dragId.current = lid),
-    onDragOver: (lid: string) => (overId.current = lid),
+    onDragOver: (lid: string) => {},
     onDrop: (lid: string) => { if (dragId.current) store.moveLayer(id, dragId.current, lid); dragId.current = null },
   }
 
-  const sceneNum = (editor.clips.findIndex((c) => true) >= 0 ? 1 : 1)
+  const elIcon = (t: string, g?: string) => (t === 'text' ? 'type' : t === 'image' ? 'image' : t === 'graphic' ? (g === 'globe' ? 'globe' : 'sparkle') : 'layers')
 
   return (
     <div style={{ width: 240, flex: 'none', borderRight: '1px solid var(--border)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -79,20 +79,62 @@ export function LayerPanel({ id, onCollapse }: { id: string; onCollapse: () => v
         <button className="btn icon sm ghost" onClick={onCollapse} aria-label="Collapse"><Icon name="chevLeft" size={15} /></button>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 10 }}>
-        <SectionLabel>Canvas</SectionLabel>
-        {canvasLayers.map((l) => (
+        {/* current scene's editable elements */}
+        <SectionLabel>{scene ? `${scene.name.replace(/^\d+ · /, 'Scene ' + (scene.index + 1) + ' · ')}` : 'Scene · Canvas'}</SectionLabel>
+        {(scene?.elements || []).map((el: any) => {
+          const selected = editor.selectedId === el.id
+          return (
+            <div
+              key={el.id}
+              draggable
+              onDragStart={() => (elDragId.current = el.id)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => { if (elDragId.current && scene) store.reorderSceneElement(id, scene.id, elDragId.current, el.id); elDragId.current = null }}
+              onClick={() => store.selectElement(id, el.id)}
+              className="ms-layerrow"
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px 6px 4px', marginBottom: 2, borderRadius: 10, cursor: 'pointer', background: selected ? 'var(--accent-soft)' : 'transparent', border: selected ? '1px solid rgba(138,63,252,.55)' : '1px solid transparent' }}
+            >
+              <span style={{ width: 12, color: 'var(--text-4)', cursor: 'grab', display: 'flex' }}><Icon name="grip" size={13} /></span>
+              <span style={{ width: 26, height: 26, flex: 'none', borderRadius: 8, display: 'grid', placeItems: 'center', background: selected ? 'var(--accent)' : 'var(--surface-3)', color: selected ? '#fff' : 'var(--text-2)' }}><Icon name={elIcon(el.type, el.graphic)} size={14} /></span>
+              <span style={{ fontSize: 12.5, fontWeight: selected ? 600 : 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{el.role}</span>
+              <button className="ms-rowbtn" onClick={(e) => { e.stopPropagation(); store.duplicateSceneElement(id, el.id) }} style={{ color: 'var(--text-4)', display: 'flex' }} aria-label="Duplicate"><Icon name="copy" size={13} /></button>
+              <button className="ms-rowbtn" onClick={(e) => { e.stopPropagation(); store.deleteSceneElement(id, el.id) }} style={{ color: 'var(--text-4)', display: 'flex' }} aria-label="Delete"><Icon name="trash" size={13} /></button>
+            </div>
+          )
+        })}
+        {scene && (
+          <button className="btn sm ghost" style={{ width: '100%', marginTop: 4, justifyContent: 'center' }} onClick={() => store.addSceneElement(id, scene.id, { id: `el_${Math.random().toString(36).slice(2)}`, role: 'Text', type: 'text', text: 'New text', x: 50, y: 50, w: 50, rotation: 0, opacity: 1, fontSize: 44, color: '#fff', align: 'center', bold: true, anim: 'rise' })}><Icon name="plus" size={13} /> Add text to scene</button>
+        )}
+
+        {overlayLayers.length > 0 && <><SectionLabel style={{ marginTop: 14 }}>Overlays</SectionLabel>
+        {overlayLayers.map((l) => (
           <LayerRow key={l.id} id={id} layer={l} kind={overlayKind(l.id)} selectable {...dragProps} />
-        ))}
-        {!canvasLayers.length && <Empty>No canvas elements</Empty>}
+        ))}</>}
 
         <SectionLabel style={{ marginTop: 14 }}>Tracks</SectionLabel>
         {trackLayers.map((l) => (
           <LayerRow key={l.id} id={id} layer={l} selectable={false} {...dragProps} />
         ))}
       </div>
-      <div style={{ padding: 10, borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
-        <button className="btn sm ghost" style={{ flex: 1 }} onClick={() => store.addOverlay(id, { sceneId: editor.clips[0]?.id || '', kind: 'text', text: 'New text', x: 50, y: 50, w: 40, h: 14, rotation: 0, opacity: 1, fontSize: 40, color: '#fff', align: 'center', bold: true })}><Icon name="plus" size={14} /> Text</button>
-        <button className="btn sm ghost" style={{ flex: 1 }} onClick={() => store.addOverlay(id, { sceneId: editor.clips[0]?.id || '', kind: 'card', text: '', x: 50, y: 50, w: 30, h: 20, rotation: 0, opacity: 1 })}><Icon name="plus" size={14} /> Card</button>
+      <div style={{ padding: 10, borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <label className="btn sm" style={{ justifyContent: 'center', cursor: 'pointer' }}>
+          <Icon name="upload" size={14} /> Upload image
+          <input type="file" accept="image/*" hidden onChange={(e) => {
+            const f = e.target.files?.[0]; if (!f) return
+            const reader = new FileReader()
+            reader.onload = () => {
+              const aId = Math.random().toString(36).slice(2)
+              store.addAsset(id, { id: aId, name: f.name, type: f.type, dataUrl: String(reader.result) })
+              store.addOverlay(id, { sceneId: editor.clips[0]?.id || '', kind: 'image', text: f.name, src: String(reader.result), x: 50, y: 50, w: 30, h: 24, rotation: 0, opacity: 1 })
+            }
+            reader.readAsDataURL(f)
+            e.currentTarget.value = ''
+          }} />
+        </label>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn sm ghost" style={{ flex: 1 }} onClick={() => store.addOverlay(id, { sceneId: editor.clips[0]?.id || '', kind: 'text', text: 'New text', x: 50, y: 50, w: 40, h: 14, rotation: 0, opacity: 1, fontSize: 40, color: '#fff', align: 'center', bold: true })}><Icon name="plus" size={14} /> Text</button>
+          <button className="btn sm ghost" style={{ flex: 1 }} onClick={() => store.addOverlay(id, { sceneId: editor.clips[0]?.id || '', kind: 'card', text: '', x: 50, y: 50, w: 30, h: 20, rotation: 0, opacity: 1 })}><Icon name="plus" size={14} /> Card</button>
+        </div>
       </div>
     </div>
   )
@@ -106,53 +148,75 @@ function Empty({ children }: { children: React.ReactNode }) {
 }
 
 // ── Contextual toolbar ──────────────────────────────────────────────────────
-const FONTS = ['Inter', 'Georgia', 'Courier New', 'Impact', 'Verdana', 'Arial Black']
-export function ContextualToolbar({ el, onChange, onDelete }: { el: OverlayElement; onChange: (p: Partial<OverlayElement>) => void; onDelete: () => void }) {
+const FONTS = ['Inter', 'Outfit', 'Georgia', 'Courier New', 'Impact', 'Verdana']
+const SWATCHES = ['#ffffff', '#171717', '#8a3ffc', '#a56eff', '#f1c21b', '#42be65', '#da1e28', '#0088ff']
+export function ContextualToolbar({ el, isText, onChange, onDelete, onDuplicate }: { el: any; isText: boolean; onChange: (p: any) => void; onDelete: () => void; onDuplicate: () => void }) {
+  const div = { width: 1, height: 22, background: 'var(--border)', flex: 'none' as const }
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-elev)', flexWrap: 'wrap' }}>
-      <span className="badge" style={{ background: 'var(--surface-3)', color: 'var(--text-2)', textTransform: 'capitalize' }}>{el.kind}</span>
-      {el.kind === 'text' && (
+      {isText && (
         <>
-          <select value={el.fontSize ? FONTS[0] : FONTS[0]} onChange={() => {}} style={selStyle} aria-label="Font">
-            {FONTS.map((f) => <option key={f}>{f}</option>)}
+          <select value={el.fontFamily || 'Inter'} onChange={(e) => onChange({ fontFamily: e.target.value })} style={{ ...selStyle, minWidth: 92 }} aria-label="Font">
+            {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
           </select>
-          <input type="number" value={el.fontSize || 40} onChange={(e) => onChange({ fontSize: Number(e.target.value) })} style={{ ...selStyle, width: 56 }} aria-label="Font size" />
+          {/* size stepper */}
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, height: 28 }}>
+            <button onClick={() => onChange({ fontSize: Math.max(8, (el.fontSize || 40) - 4) })} style={stepBtn} aria-label="Smaller">−</button>
+            <input type="number" value={el.fontSize || 40} onChange={(e) => onChange({ fontSize: Number(e.target.value) })} style={{ width: 38, background: 'none', border: 'none', textAlign: 'center', fontSize: 12, color: 'var(--text)', outline: 'none' }} aria-label="Font size" />
+            <button onClick={() => onChange({ fontSize: Math.min(200, (el.fontSize || 40) + 4) })} style={stepBtn} aria-label="Larger">+</button>
+          </div>
           <button className={`btn icon sm ${el.bold ? 'primary' : 'ghost'}`} onClick={() => onChange({ bold: !el.bold })} aria-label="Bold"><Icon name="bold" size={14} /></button>
           <button className={`btn icon sm ${el.italic ? 'primary' : 'ghost'}`} onClick={() => onChange({ italic: !el.italic })} aria-label="Italic"><Icon name="italic" size={14} /></button>
-          <input type="color" value={el.color || '#ffffff'} onChange={(e) => onChange({ color: e.target.value })} style={{ width: 30, height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer' }} aria-label="Color" />
+          <button className={`btn icon sm ${el.align === 'left' ? 'primary' : 'ghost'}`} onClick={() => onChange({ align: 'left' })} aria-label="Align left" style={{ fontSize: 13 }}>⌧</button>
+          <button className={`btn icon sm ${(el.align || 'center') === 'center' ? 'primary' : 'ghost'}`} onClick={() => onChange({ align: 'center' })} aria-label="Align center"><Icon name="alignCenter" size={14} /></button>
+          <span style={div} />
+          {/* quick swatches */}
+          <div style={{ display: 'flex', gap: 3 }}>
+            {SWATCHES.map((c) => (
+              <button key={c} onClick={() => onChange({ color: c })} aria-label={`Color ${c}`} style={{ width: 18, height: 18, borderRadius: 5, background: c, border: el.color === c ? '2px solid #fff' : '1px solid var(--border-strong)', cursor: 'pointer' }} />
+            ))}
+            <input type="color" value={el.color || '#ffffff'} onChange={(e) => onChange({ color: e.target.value })} style={{ width: 22, height: 18, borderRadius: 5, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', padding: 0 }} aria-label="Custom color" />
+          </div>
+          <span style={div} />
         </>
       )}
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-3)' }}>
         Opacity
-        <input type="range" min={0} max={100} value={Math.round(el.opacity * 100)} onChange={(e) => onChange({ opacity: Number(e.target.value) / 100 })} style={{ width: 80 }} />
+        <input type="range" min={0} max={100} value={Math.round(el.opacity * 100)} onChange={(e) => onChange({ opacity: Number(e.target.value) / 100 })} style={{ width: 72 }} />
       </label>
       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-3)' }}>
         Rotate
-        <input type="range" min={-180} max={180} value={el.rotation} onChange={(e) => onChange({ rotation: Number(e.target.value) })} style={{ width: 70 }} />
+        <input type="range" min={-180} max={180} value={el.rotation} onChange={(e) => onChange({ rotation: Number(e.target.value) })} style={{ width: 64 }} />
       </label>
-      <button className="btn icon sm ghost" onClick={onDelete} style={{ marginLeft: 'auto', color: 'var(--red)' }} aria-label="Delete"><Icon name="trash" size={15} /></button>
+      <span style={{ ...div, marginLeft: 'auto' }} />
+      <button className="btn icon sm ghost" onClick={onDuplicate} aria-label="Duplicate"><Icon name="copy" size={15} /></button>
+      <button className="btn icon sm ghost" onClick={onDelete} style={{ color: 'var(--red)' }} aria-label="Delete"><Icon name="trash" size={15} /></button>
     </div>
   )
 }
+const stepBtn: React.CSSProperties = { width: 24, height: 26, color: 'var(--text-2)', fontSize: 15, display: 'grid', placeItems: 'center' }
 const selStyle: React.CSSProperties = { height: 28, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, padding: '0 8px', fontSize: 12, color: 'var(--text)', outline: 'none' }
 
 // ── AI prompt bar ───────────────────────────────────────────────────────────
-export function AIPromptBar({ selected, onRun }: { selected: boolean; onRun: (prompt: string, ctx: string) => void }) {
+export function AIPromptBar({ selectedName, onRun }: { selectedName: string | null; onRun: (prompt: string, ctx: string) => void }) {
   const [val, setVal] = useState('')
-  const [ctx, setCtx] = useState('Whole video')
-  const chips = selected
-    ? ['Make this larger', 'Center it', 'Change color to lime', 'Add entrance animation', 'Remove this']
+  const chips = selectedName
+    ? ['Make this larger', 'Center it', 'Change color to gold', 'Add entrance animation', 'Remove this']
     : ['Add subtitles', 'Tighten transitions', 'Reformat for 9:16', 'Add a CTA card']
+  const ctx = selectedName ? 'Selected element' : 'Whole video'
   const submit = (p: string) => { if (!p.trim()) return; onRun(p, ctx); setVal('') }
+  const placeholder = selectedName ? `Edit "${selectedName}" — e.g. make it gold and larger` : 'Ask AI to edit your video…'
   return (
     <div style={{ padding: '10px 16px 14px', borderTop: '1px solid var(--border)', background: 'var(--bg-elev)' }} data-tour="ai">
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 760, margin: '0 auto' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 9, background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 999, padding: '0 6px 0 14px', height: 42 }}>
-          <Icon name="sparkle" size={16} style={{ color: 'var(--lime)' }} />
-          <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit(val)} placeholder="Ask AI to edit your video…" style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 13.5 }} />
-          <select value={ctx} onChange={(e) => setCtx(e.target.value)} style={{ ...selStyle, height: 30, borderRadius: 99 }} aria-label="Context">
-            {['Whole video', 'Selected element', 'Current scene', 'Audio only'].map((c) => <option key={c}>{c}</option>)}
-          </select>
+          <Icon name="sparkle" size={16} style={{ color: 'var(--accent-2)' }} />
+          {selectedName && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, color: 'var(--accent-2)', background: 'var(--accent-soft)', padding: '3px 9px', borderRadius: 99, whiteSpace: 'nowrap', flex: 'none' }}>
+              <Icon name="type" size={12} /> {selectedName.length > 16 ? selectedName.slice(0, 16) + '…' : selectedName}
+            </span>
+          )}
+          <input value={val} onChange={(e) => setVal(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit(val)} placeholder={placeholder} style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: 13.5, minWidth: 60 }} />
           <button className="btn icon sm primary" onClick={() => submit(val)} aria-label="Send"><Icon name="arrowRight" size={15} /></button>
         </div>
       </div>
@@ -164,13 +228,21 @@ export function AIPromptBar({ selected, onRun }: { selected: boolean; onRun: (pr
 }
 
 // ── AI chat panel ───────────────────────────────────────────────────────────
-export function AIChatPanel({ chat, onCollapse, onRun }: { chat: ChatMessage[]; onCollapse: () => void; onRun: (p: string) => void }) {
+export function AIChatPanel({ chat, selectedName, onCollapse, onRun }: { chat: ChatMessage[]; selectedName: string | null; onCollapse: () => void; onRun: (p: string) => void }) {
   const [val, setVal] = useState('')
   return (
     <div style={{ width: 284, flex: 'none', borderLeft: '1px solid var(--border)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 13px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="sparkle" size={15} style={{ color: 'var(--lime)' }} /> AI Studio</span>
+        <span style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 7 }}><Icon name="sparkle" size={15} style={{ color: 'var(--accent-2)' }} /> AI Editor</span>
         <button className="btn icon sm ghost" onClick={onCollapse} aria-label="Collapse"><Icon name="chevRight" size={15} /></button>
+      </div>
+      <div style={{ padding: '10px 13px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 11px' }}>
+          <span style={{ color: 'var(--text-3)' }}>Editing:</span>
+          <span style={{ fontWeight: 600, color: selectedName ? 'var(--accent-2)' : 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 5 }}>
+            {selectedName ? <><Icon name="type" size={12} /> {selectedName}</> : 'Whole video'}
+          </span>
+        </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {chat.length === 0 && (

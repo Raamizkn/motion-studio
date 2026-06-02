@@ -91,14 +91,27 @@ export function renderPlugin() {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || ''
 
-        // serve rendered files
+        // serve rendered files — WITH HTTP range support so video seeking works
         if (req.method === 'GET' && url.startsWith('/renders/')) {
           const rel = url.split('?')[0].replace('/renders/', '')
           const file = path.join(WORK, rel)
           if (fs.existsSync(file) && fs.statSync(file).isFile()) {
+            const stat = fs.statSync(file)
             res.setHeader('content-type', 'video/mp4')
             res.setHeader('accept-ranges', 'bytes')
-            fs.createReadStream(file).pipe(res)
+            const range = req.headers.range
+            const m = range && /bytes=(\d+)-(\d*)/.exec(range)
+            if (m) {
+              const start = parseInt(m[1], 10)
+              const end = m[2] ? parseInt(m[2], 10) : stat.size - 1
+              res.statusCode = 206
+              res.setHeader('content-range', `bytes ${start}-${end}/${stat.size}`)
+              res.setHeader('content-length', end - start + 1)
+              fs.createReadStream(file, { start, end }).pipe(res)
+            } else {
+              res.setHeader('content-length', stat.size)
+              fs.createReadStream(file).pipe(res)
+            }
             return
           }
           res.statusCode = 404

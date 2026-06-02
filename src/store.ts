@@ -6,6 +6,7 @@ import type {
   EditorState,
   OverlayElement,
   TimelineClip,
+  SceneElement,
 } from './types'
 import { generateStoryboard, buildEditorState, uid } from './data'
 
@@ -54,6 +55,13 @@ interface Store {
   moveLayer: (id: string, dragId: string, overId: string) => void
   deleteOverlay: (id: string, ovId: string) => void
   addOverlay: (id: string, ov: Omit<OverlayElement, 'id'>) => string
+  duplicateOverlay: (id: string, ovId: string) => string | null
+  addAsset: (id: string, asset: { id: string; name: string; type: string; dataUrl: string }) => void
+  updateSceneElement: (id: string, elId: string, patch: Partial<SceneElement>, snapshot?: boolean) => void
+  addSceneElement: (id: string, sceneId: string, el: SceneElement) => void
+  deleteSceneElement: (id: string, elId: string) => void
+  duplicateSceneElement: (id: string, elId: string) => string | null
+  reorderSceneElement: (id: string, sceneId: string, dragId: string, overId: string) => void
   snapshot: (id: string) => void
   undo: (id: string) => void
   redo: (id: string) => void
@@ -196,7 +204,7 @@ export const useStore = create<Store>((set, get) => ({
     const existing = get().editors[id]
     if (existing) return existing
     const project = get().projects.find((p) => p.id === id)
-    const es = project ? buildEditorState(project.frames, project.config) : { clips: [], layers: [], overlays: [], duration: 0, selectedId: null }
+    const es = project ? buildEditorState(project.frames, project.config) : { clips: [], layers: [], overlays: [], scenes: [], duration: 0, selectedId: null }
     set((s) => ({ editors: { ...s.editors, [id]: es }, history: { ...s.history, [id]: { past: [], future: [] } } }))
     return es
   },
@@ -282,6 +290,91 @@ export const useStore = create<Store>((set, get) => ({
     })
     return newId
   },
+
+  duplicateOverlay: (id, ovId) => {
+    const newId = uid('ov')
+    let ok = false
+    set((s) => {
+      const es = s.editors[id]
+      const src = es?.overlays.find((o) => o.id === ovId)
+      if (!es || !src) return s
+      ok = true
+      const copy: OverlayElement = { ...src, id: newId, x: Math.min(94, src.x + 4), y: Math.min(94, src.y + 4) }
+      const layer = { id: newId, group: 'overlays' as const, name: `${es.layers.find((l) => l.id === ovId)?.name || src.kind} copy`, visible: true, locked: false }
+      const next = { ...es, overlays: [...es.overlays, copy], layers: [...es.layers, layer], selectedId: newId }
+      return { editors: { ...s.editors, [id]: next }, history: pushHistory(s.history, id, es) }
+    })
+    return ok ? newId : null
+  },
+
+  addAsset: (id, asset) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id ? { ...p, config: { ...p.config, assets: [...(p.config.assets || []), asset], assetIds: [...p.config.assetIds, asset.id] }, updatedAt: Date.now() } : p,
+      )
+      persist(projects)
+      return { projects }
+    }),
+
+  updateSceneElement: (id, elId, patch, snapshot) =>
+    set((s) => {
+      const es = s.editors[id]
+      if (!es) return s
+      const scenes = es.scenes.map((sc) => ({ ...sc, elements: sc.elements.map((e) => (e.id === elId ? { ...e, ...patch } : e)) }))
+      const history = snapshot ? pushHistory(s.history, id, es) : s.history
+      return { editors: { ...s.editors, [id]: { ...es, scenes } }, history }
+    }),
+
+  addSceneElement: (id, sceneId, el) =>
+    set((s) => {
+      const es = s.editors[id]
+      if (!es) return s
+      const scenes = es.scenes.map((sc) => (sc.id === sceneId ? { ...sc, elements: [...sc.elements, el] } : sc))
+      return { editors: { ...s.editors, [id]: { ...es, scenes, selectedId: el.id } }, history: pushHistory(s.history, id, es) }
+    }),
+
+  deleteSceneElement: (id, elId) =>
+    set((s) => {
+      const es = s.editors[id]
+      if (!es) return s
+      const scenes = es.scenes.map((sc) => ({ ...sc, elements: sc.elements.filter((e) => e.id !== elId) }))
+      return { editors: { ...s.editors, [id]: { ...es, scenes, selectedId: es.selectedId === elId ? null : es.selectedId } }, history: pushHistory(s.history, id, es) }
+    }),
+
+  duplicateSceneElement: (id, elId) => {
+    const newId = uid('el')
+    let ok = false
+    set((s) => {
+      const es = s.editors[id]
+      if (!es) return s
+      const scenes = es.scenes.map((sc) => {
+        const src = sc.elements.find((e) => e.id === elId)
+        if (!src) return sc
+        ok = true
+        return { ...sc, elements: [...sc.elements, { ...src, id: newId, x: Math.min(94, src.x + 4), y: Math.min(94, src.y + 4), role: `${src.role} copy` }] }
+      })
+      if (!ok) return s
+      return { editors: { ...s.editors, [id]: { ...es, scenes, selectedId: newId } }, history: pushHistory(s.history, id, es) }
+    })
+    return ok ? newId : null
+  },
+
+  reorderSceneElement: (id, sceneId, dragId, overId) =>
+    set((s) => {
+      const es = s.editors[id]
+      if (!es || dragId === overId) return s
+      const scenes = es.scenes.map((sc) => {
+        if (sc.id !== sceneId) return sc
+        const els = [...sc.elements]
+        const from = els.findIndex((e) => e.id === dragId)
+        const to = els.findIndex((e) => e.id === overId)
+        if (from < 0 || to < 0) return sc
+        const [m] = els.splice(from, 1)
+        els.splice(to, 0, m)
+        return { ...sc, elements: els }
+      })
+      return { editors: { ...s.editors, [id]: { ...es, scenes } }, history: pushHistory(s.history, id, es) }
+    }),
 
   snapshot: (id) => set((s) => ({ history: pushHistory(s.history, id, s.editors[id]) })),
 

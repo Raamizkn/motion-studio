@@ -30,6 +30,7 @@ export interface VideoProjectConfig {
   palette: string[]
   templateId?: string
   assetIds: string[]
+  assets?: UploadedAsset[]
 }
 
 export type SceneKind =
@@ -63,6 +64,50 @@ export interface SceneSeed {
   headline: string
   lines: string[]
   accent: string
+}
+
+// ── Editable scene graph ────────────────────────────────────────────────────
+// Every scene is HTML; these are its directly-editable parts on the canvas.
+export type SceneElementType = 'text' | 'shape' | 'image' | 'graphic'
+export type GraphicKind = 'globe' | 'ring' | 'frame' | 'bars'
+
+export interface SceneElement {
+  id: string
+  role: string // human label shown in layers / "Editing:" — e.g. "Headline"
+  type: SceneElementType
+  text?: string
+  src?: string
+  graphic?: GraphicKind
+  x: number // center %, 0–100
+  y: number
+  w: number // width %
+  h?: number // height % (shapes/graphics; text is auto)
+  rotation: number
+  opacity: number
+  // text
+  fontSize?: number
+  fontFamily?: string
+  color?: string
+  bold?: boolean
+  italic?: boolean
+  align?: 'left' | 'center' | 'right'
+  // shape
+  bg?: string
+  radius?: number
+  border?: string
+  glass?: boolean
+  anim?: string // entrance animation key
+}
+
+export interface EditorScene {
+  id: string
+  index: number
+  start: number
+  end: number
+  kind: SceneKind
+  palette: string[]
+  name: string
+  elements: SceneElement[]
 }
 
 export interface VideoProject {
@@ -117,6 +162,7 @@ export interface OverlayElement {
   sceneId: string // which scene/clip it belongs to
   kind: OverlayKind
   text?: string
+  src?: string // data URL for image/logo overlays
   x: number // % of canvas
   y: number
   w: number
@@ -124,11 +170,19 @@ export interface OverlayElement {
   rotation: number
   opacity: number
   fontSize?: number
+  fontFamily?: string
   color?: string
   align?: 'left' | 'center' | 'right'
   bold?: boolean
   italic?: boolean
   animation?: string
+}
+
+export interface UploadedAsset {
+  id: string
+  name: string
+  type: string // mime
+  dataUrl: string
 }
 
 export interface TimelineClip {
@@ -147,8 +201,9 @@ export interface EditorState {
   clips: TimelineClip[]
   layers: EditorLayer[]
   overlays: OverlayElement[]
+  scenes: EditorScene[]
   duration: number
-  selectedId: string | null
+  selectedId: string | null // element id (scene element or overlay)
 }
 
 export interface ChatMessage {

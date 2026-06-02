@@ -11,6 +11,7 @@ import type {
   OverlayElement,
   ModelTier,
 } from './types'
+import { buildScenes } from './sceneModel'
 
 // ── Palettes ──────────────────────────────────────────────────────────────
 export const PALETTES: Record<string, string[]> = {
@@ -305,45 +306,31 @@ export function buildEditorState(frames: StoryboardFrame[], config: VideoProject
   }))
 
   const overlays: OverlayElement[] = []
-  // a logo overlay across the whole video + a title overlay on the first scene
+  // a logo overlay across the whole video — uses an uploaded image asset if present
+  const logoAsset = (config.assets || []).find((a) => a.type.startsWith('image/'))
   overlays.push({
     id: uid('ov'),
     sceneId: clips[0]?.id ?? '',
-    kind: 'logo',
+    kind: logoAsset ? 'image' : 'logo',
     text: config.brand?.title || 'LOGO',
-    x: 6,
-    y: 8,
-    w: 14,
+    src: logoAsset?.dataUrl,
+    x: 9,
+    y: 11,
+    w: logoAsset ? 10 : 14,
     h: 10,
     rotation: 0,
-    opacity: 0.9,
+    opacity: 0.95,
     color: config.palette[0],
     animation: 'fade',
   })
-  overlays.push({
-    id: uid('ov'),
-    sceneId: clips[0]?.id ?? '',
-    kind: 'text',
-    text: frames[0]?.copy[0] || 'Title text',
-    x: 50,
-    y: 50,
-    w: 60,
-    h: 16,
-    rotation: 0,
-    opacity: 1,
-    fontSize: 54,
-    color: '#ffffff',
-    align: 'center',
-    bold: true,
-    animation: 'rise',
-  })
+  // (no auto title overlay — scene elements now own the editable headline/subtitle)
 
   const layers: EditorLayer[] = [
     ...clips.map((c) => ({ id: c.id, group: 'video' as const, name: c.name, visible: true, locked: false })),
     ...overlays.map((o) => ({
       id: o.id,
       group: 'overlays' as const,
-      name: o.kind === 'logo' ? `Logo — ${o.text}` : `Text — ${o.text}`,
+      name: o.kind === 'logo' || o.kind === 'image' ? `Logo — ${o.text}` : `Text — ${o.text}`,
       visible: true,
       locked: false,
     })),
@@ -352,7 +339,7 @@ export function buildEditorState(frames: StoryboardFrame[], config: VideoProject
     { id: uid('cap'), group: 'captions', name: 'Subtitles', visible: true, locked: false },
   ]
 
-  return { clips, layers, overlays, duration, selectedId: null }
+  return { clips, layers, overlays, scenes: buildScenes(frames), duration, selectedId: null }
 }
 
 export { uid }

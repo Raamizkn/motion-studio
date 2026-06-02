@@ -1,5 +1,7 @@
 import type { VideoProject } from './types'
-import { buildComposition } from './composition'
+import { buildCompositionFromScenes } from './composition'
+import { useStore } from './store'
+import { buildEditorState } from './data'
 
 export interface RenderStatus {
   status: 'rendering' | 'complete' | 'error' | 'unknown'
@@ -11,7 +13,9 @@ export interface RenderStatus {
 
 /** Kick off a real Kinetic render on the backend. Returns the job id. */
 export async function startRender(project: VideoProject): Promise<string> {
-  const { html, meta } = buildComposition(project.frames, project.config, project.name)
+  // render the exact scene graph the editor canvas shows (elements + overlays)
+  const editor = useStore.getState().editors[project.id] || buildEditorState(project.frames, project.config)
+  const { html, meta } = buildCompositionFromScenes(editor.scenes, project.config, project.name, editor.overlays)
   const res = await fetch('/api/render', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

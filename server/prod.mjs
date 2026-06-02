@@ -171,14 +171,24 @@ app.get('/api/render/status', (req, res) => {
   res.status(404).json({ status: 'unknown' })
 })
 
-// Serve rendered MP4s
+// Serve rendered MP4s — WITH HTTP range support so video seeking works
 app.use('/renders', (req, res, next) => {
   const file = path.join(WORK, req.path)
-  if (fs.existsSync(file) && fs.statSync(file).isFile()) {
-    res.setHeader('content-type', 'video/mp4')
-    return fs.createReadStream(file).pipe(res)
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return next()
+  const stat = fs.statSync(file)
+  res.setHeader('content-type', 'video/mp4')
+  res.setHeader('accept-ranges', 'bytes')
+  const m = req.headers.range && /bytes=(\d+)-(\d*)/.exec(req.headers.range)
+  if (m) {
+    const start = parseInt(m[1], 10)
+    const end = m[2] ? parseInt(m[2], 10) : stat.size - 1
+    res.statusCode = 206
+    res.setHeader('content-range', `bytes ${start}-${end}/${stat.size}`)
+    res.setHeader('content-length', end - start + 1)
+    return fs.createReadStream(file, { start, end }).pipe(res)
   }
-  next()
+  res.setHeader('content-length', stat.size)
+  fs.createReadStream(file).pipe(res)
 })
 
 // ── AI API ─────────────────────────────────────────────────────────────────

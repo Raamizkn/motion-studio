@@ -1,4 +1,4 @@
-import type { StoryboardFrame, VideoProjectConfig, SceneSeed, SceneKind } from './types'
+import type { StoryboardFrame, VideoProjectConfig, SceneSeed, SceneKind, OverlayElement, EditorScene, SceneElement } from './types'
 
 /**
  * Builds a lint-valid Kinetic (Hyperframes) composition from a storyboard.
@@ -151,6 +151,7 @@ export function buildComposition(
   frames: StoryboardFrame[],
   config: VideoProjectConfig,
   name: string,
+  overlays: OverlayElement[] = [],
 ): CompositionResult {
   const W = 1920
   const H = 1080
@@ -192,6 +193,31 @@ export function buildComposition(
     })
   })
 
+  // ── Editor overlays (logo, titles, uploaded images) — persistent on top ──
+  overlays.forEach((o, i) => {
+    const track = 20 + i
+    const id = `ov${i}`
+    const left = (o.x / 100) * W
+    const top = (o.y / 100) * H
+    const wpx = (o.w / 100) * W
+    const transform = `translate(-50%,-50%) rotate(${o.rotation || 0}deg)`
+    let inner = ''
+    if (o.kind === 'image' && o.src) {
+      inner = `<img src="${o.src}" style="width:${wpx}px;height:auto;display:block;object-fit:contain"/>`
+    } else if (o.kind === 'logo') {
+      inner = `<div style="display:inline-flex;align-items:center;gap:10px;padding:14px 26px;border-radius:14px;background:rgba(0,0,0,.4);color:${o.color || '#fff'};font-weight:800;font-size:${(o.fontSize || 30) * 1.4}px;letter-spacing:.05em">${esc(o.text || 'LOGO')}</div>`
+    } else if (o.kind === 'text') {
+      inner = `<div style="font-size:${(o.fontSize || 40) * 1.6}px;font-weight:${o.bold ? 800 : 500};font-style:${o.italic ? 'italic' : 'normal'};color:${o.color || '#fff'};text-align:${o.align || 'center'};font-family:${o.fontFamily || 'Inter'},sans-serif;text-shadow:0 2px 18px rgba(0,0,0,.8);line-height:1.1;max-width:${wpx}px">${esc(o.text || '')}</div>`
+    } else {
+      inner = `<div style="width:${wpx}px;height:${(o.h / 100) * H}px;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)"></div>`
+    }
+    clips.push(
+      `<div class="clip" data-start="0" data-duration="${total}" data-track-index="${track}" style="position:absolute;left:${left}px;top:${top}px;transform:${transform};opacity:${o.opacity ?? 1}">
+<div id="${id}" style="display:inline-block">${inner}</div></div>`,
+    )
+    tweenLines.push(`tl.from('#${id}', {opacity:0,y:18,duration:.6,ease:'power2.out'}, 0.2);`)
+  })
+
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=1920, height=1080"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
@@ -216,4 +242,97 @@ window.__timelines['main'] = tl;
 </body></html>`
 
   return { html, meta: { id: 'main', name, duration: total, fps, width: W, height: H } }
+}
+
+// ── Compose directly from edited scene elements (what the editor canvas shows) ─
+const W2 = 1920, H2 = 1080
+function px(n: number, base: number) { return (n / 100) * base }
+
+function elementHtml(el: SceneElement, sid: string): { html: string; anim: string } {
+  const id = `${sid}_${el.id}`
+  const left = px(el.x, W2), top = px(el.y, H2), w = px(el.w, W2)
+  const wrapOpen = `<div id="${id}" style="position:absolute;left:${left}px;top:${top}px;width:${w}px;transform:translate(-50%,-50%) rotate(${el.rotation || 0}deg);opacity:${el.opacity ?? 1}">`
+  let inner = ''
+  if (el.type === 'text') {
+    inner = `<div style="font-size:${(el.fontSize || 40) * 1.9}px;font-weight:${el.bold ? 800 : 500};font-style:${el.italic ? 'italic' : 'normal'};color:${el.color || '#fff'};text-align:${el.align || 'center'};font-family:${el.fontFamily || 'Inter'},sans-serif;text-shadow:0 2px 18px rgba(0,0,0,.7);line-height:1.08;letter-spacing:-.01em">${esc(el.text || '')}</div>`
+  } else if (el.type === 'image' && el.src) {
+    inner = `<img src="${el.src}" style="width:100%;height:auto;display:block;object-fit:contain"/>`
+  } else if (el.type === 'graphic') {
+    const accent = (el.border || '').match(/#[0-9a-fA-F]{3,8}/)?.[0] || '#8a3ffc'
+    const h = px(el.h || 30, H2)
+    if (el.graphic === 'globe') {
+      inner = `<div style="width:100%;height:${h}px;border-radius:50%;border:2px solid ${accent}aa;position:relative;box-shadow:inset 0 0 ${h / 3}px ${accent}55,0 0 ${h / 4}px ${accent}44"><div style="position:absolute;inset:8%;border-radius:50%;border:1px solid ${accent}55"></div><div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${accent}66;transform:rotateY(70deg)"></div><div style="position:absolute;inset:0;border-radius:50%;border:1px solid ${accent}66;transform:rotateX(70deg)"></div></div>`
+    } else if (el.graphic === 'ring') {
+      inner = `<div style="width:100%;height:${h}px;border-radius:50%;border:${el.border || '2px solid ' + accent}"></div>`
+    } else {
+      inner = `<div style="width:100%;height:${h}px;border-radius:20px;background:${el.bg || '#222'};border:${el.border || 'none'}"></div>`
+    }
+  } else {
+    // shape / card
+    const h = el.h ? `${px(el.h, H2)}px` : 'auto'
+    const txt = el.text ? `<div style="font-size:${(el.fontSize || 28) * 1.9}px;font-weight:${el.bold ? 800 : 600};color:${el.color || '#fff'};text-align:${el.align || 'center'};padding:0 12px">${esc(el.text)}</div>` : ''
+    inner = `<div style="width:100%;height:${h};min-height:${el.h ? '0' : '60px'};background:${el.glass ? 'rgba(255,255,255,.08)' : el.bg || 'rgba(255,255,255,.08)'};border:${el.border || '1px solid rgba(255,255,255,.18)'};border-radius:${el.radius ?? 16}px;${el.glass ? 'backdrop-filter:blur(14px);' : ''}display:flex;align-items:center;justify-content:center;${el.bg && !el.glass ? 'box-shadow:0 20px 60px rgba(0,0,0,.4);' : ''}">${txt}</div>`
+  }
+  const animMap: Record<string, string> = {
+    rise: '{opacity:0,y:40,duration:.7,ease:"power3.out"}',
+    fade: '{opacity:0,duration:.6}',
+    slide: '{opacity:0,x:-50,duration:.7,ease:"power3.out"}',
+    scale: '{opacity:0,scale:.7,duration:.7,ease:"back.out(1.6)"}',
+  }
+  return { html: wrapOpen + inner + '</div>', anim: animMap[el.anim || 'rise'] || animMap.rise }
+}
+
+export function buildCompositionFromScenes(
+  scenes: EditorScene[],
+  config: VideoProjectConfig,
+  name: string,
+  overlays: OverlayElement[] = [],
+): CompositionResult {
+  const fps = config.fps || 30
+  const total = +(scenes.length ? scenes[scenes.length - 1].end : config.durationSec).toFixed(2)
+  const clips: string[] = [`<div class="clip" data-start="0" data-duration="${total}" data-track-index="0" style="position:absolute;inset:0;background:#0a0a0c"></div>`]
+  const tweens: string[] = []
+
+  scenes.forEach((sc, i) => {
+    const start = +sc.start.toFixed(2)
+    const dur = +(sc.end - sc.start).toFixed(2)
+    const sid = `s${i}`
+    const body = sc.elements.map((el) => {
+      const { html, anim } = elementHtml(el, sid)
+      return { html, anim, eid: `${sid}_${el.id}` }
+    })
+    clips.push(
+      `<div class="clip" data-start="${start}" data-duration="${dur}" data-track-index="2" style="position:absolute;inset:0;overflow:hidden">
+<div style="position:absolute;inset:0;background:${mesh(sc.palette)}"></div>
+${body.map((b) => b.html).join('\n')}</div>`,
+    )
+    body.forEach((b, j) => tweens.push(`tl.from('#${b.eid}', ${b.anim}, ${(start + 0.15 + j * 0.12).toFixed(2)});`))
+  })
+
+  // persistent overlays on top
+  overlays.forEach((o, i) => {
+    const id = `ov${i}`
+    const left = px(o.x, W2), top = px(o.y, H2), w = px(o.w, W2)
+    let inner = ''
+    if (o.kind === 'image' && o.src) inner = `<img src="${o.src}" style="width:${w}px;height:auto;display:block"/>`
+    else if (o.kind === 'logo') inner = `<div style="display:inline-flex;align-items:center;padding:14px 26px;border-radius:14px;background:rgba(0,0,0,.4);color:${o.color || '#fff'};font-weight:800;font-size:${(o.fontSize || 30) * 1.4}px">${esc(o.text || 'LOGO')}</div>`
+    else if (o.kind === 'text') inner = `<div style="font-size:${(o.fontSize || 40) * 1.9}px;font-weight:${o.bold ? 800 : 500};color:${o.color || '#fff'};text-align:${o.align || 'center'};font-family:${o.fontFamily || 'Inter'},sans-serif;text-shadow:0 2px 18px rgba(0,0,0,.8);max-width:${w}px">${esc(o.text || '')}</div>`
+    else inner = `<div style="width:${w}px;height:${px(o.h, H2)}px;border-radius:16px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18)"></div>`
+    clips.push(`<div class="clip" data-start="0" data-duration="${total}" data-track-index="${20 + i}" style="position:absolute;left:${left}px;top:${top}px;transform:translate(-50%,-50%) rotate(${o.rotation || 0}deg);opacity:${o.opacity ?? 1}"><div id="${id}" style="display:inline-block">${inner}</div></div>`)
+    tweens.push(`tl.from('#${id}', {opacity:0,y:18,duration:.6}, 0.2);`)
+  })
+
+  const html = `<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=1920, height=1080"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>*{margin:0;padding:0;box-sizing:border-box}html,body{width:${W2}px;height:${H2}px;overflow:hidden;background:#0a0a0c;color:#fff;font-family:'Inter',sans-serif}#root{position:relative;width:${W2}px;height:${H2}px}</style></head>
+<body><div id="root" data-composition-id="main" data-start="0" data-duration="${total}" data-width="${W2}" data-height="${H2}">
+${clips.join('\n')}
+</div>
+<script>window.__timelines=window.__timelines||{};const tl=gsap.timeline({paused:true});
+${tweens.join('\n')}
+window.__timelines['main']=tl;</script></body></html>`
+
+  return { html, meta: { id: 'main', name, duration: total, fps, width: W2, height: H2 } }
 }
