@@ -164,7 +164,7 @@ export function VideoEditor() {
         onBack={() => nav(`/studio/projects/${id}/storyboard`)}
         onExport={() => setExportOpen(true)}
         onPublish={() => setPublishOpen(true)}
-        onRename={(n) => store.renameProject(id, n)}
+        onRename={(n: string) => store.renameProject(id, n)}
         hasVideo={!!videoUrl}
       />
 
@@ -186,8 +186,8 @@ export function VideoEditor() {
               seed={currentClip?.seed}
               overlays={editor.overlays}
               selectedId={editor.selectedId}
-              onSelect={(oid) => store.selectElement(id, oid)}
-              onMove={(oid, patch) => store.updateOverlay(id, oid, patch)}
+              onSelect={(oid: string | null) => store.selectElement(id, oid)}
+              onMove={(oid: string, patch: Partial<OverlayElement>) => store.updateOverlay(id, oid, patch)}
               onMoveEnd={() => store.snapshot(id)}
             />
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
