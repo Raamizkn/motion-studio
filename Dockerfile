@@ -22,8 +22,11 @@ RUN apt-get update && apt-get install -y \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
-# Create a chromium wrapper to enforce --no-sandbox for Docker (root user)
-RUN echo '#!/bin/sh\nexec /usr/bin/chromium --no-sandbox --disable-setuid-sandbox "$@"' > /usr/bin/chromium-wrapper && chmod +x /usr/bin/chromium-wrapper
+# Create a chromium wrapper to enforce Docker-safe flags
+# --no-sandbox: required when running as root
+# --disable-dev-shm-usage: use /tmp instead of /dev/shm (only 64MB in Docker → OOM crash)
+# --disable-gpu: no GPU in container
+RUN printf '#!/bin/sh\nexec /usr/bin/chromium --no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage --disable-gpu "$@"\n' > /usr/bin/chromium-wrapper && chmod +x /usr/bin/chromium-wrapper
 
 # Tell puppeteer/hyperframes to use the wrapper
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true

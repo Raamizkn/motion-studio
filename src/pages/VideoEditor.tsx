@@ -56,16 +56,33 @@ export function VideoEditor() {
     if (!rendering || !project) return
     let stop = () => {}
     ;(async () => {
-      // check if already complete (e.g. revisiting)
+      // check if already complete, errored, or gone (e.g. revisiting after server restart)
       const existing = await getRenderStatus(id)
       if (existing.status === 'complete' && existing.url) {
-        setVideoUrl(existing.url); setRendering(false); setStatus(id, 'complete'); return
+        setVideoUrl(existing.url); setRendering(false); setStatus(id, 'complete')
+        // clear ?render=1 so refreshing won't re-trigger
+        window.history.replaceState({}, '', window.location.pathname)
+        return
+      }
+      if (existing.status === 'unknown') {
+        // server doesn't know about this job (restarted, never started, etc.)
+        setRenderErr('Render job not found — try rendering again'); setRendering(false); setStatus(id, 'error')
+        window.history.replaceState({}, '', window.location.pathname)
+        return
+      }
+      if (existing.status === 'error') {
+        setRenderErr(existing.error || 'Render failed'); setRendering(false); setStatus(id, 'error')
+        window.history.replaceState({}, '', window.location.pathname)
+        return
       }
       stop = pollRender(id, (s) => {
         setProgress(s.progress); setStage(s.stage || 'Rendering')
-        if (s.status === 'complete' && s.url) { setVideoUrl(s.url); setRendering(false); setStatus(id, 'complete') }
+        if (s.status === 'complete' && s.url) {
+          setVideoUrl(s.url); setRendering(false); setStatus(id, 'complete')
+          window.history.replaceState({}, '', window.location.pathname)
+        }
         if (s.status === 'error') { setRenderErr(s.error || 'Render failed'); setRendering(false); setStatus(id, 'error') }
-        if (s.status === 'unknown') { setRenderErr('Render job not found (server may have restarted)'); setRendering(false); setStatus(id, 'error') }
+        if (s.status === 'unknown') { setRenderErr('Render job not found — try rendering again'); setRendering(false); setStatus(id, 'error') }
       })
     })()
     return () => stop()
