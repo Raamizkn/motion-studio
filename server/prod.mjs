@@ -234,7 +234,7 @@ app.post('/api/ai/regenerate-frame', async (req, res) => {
 // ── Serve frontend ─────────────────────────────────────────────────────────
 if (fs.existsSync(DIST)) {
   app.use(express.static(DIST))
-  app.get('*', (_req, res) => res.sendFile(path.join(DIST, 'index.html')))
+  app.get(/.*/, (_req, res) => res.sendFile(path.join(DIST, 'index.html')))
 } else {
   app.get('/', (_req, res) => res.send('<h2>Run <code>npm run build</code> first</h2>'))
 }
