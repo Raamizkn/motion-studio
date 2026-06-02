@@ -65,6 +65,7 @@ export function VideoEditor() {
         setProgress(s.progress); setStage(s.stage || 'Rendering')
         if (s.status === 'complete' && s.url) { setVideoUrl(s.url); setRendering(false); setStatus(id, 'complete') }
         if (s.status === 'error') { setRenderErr(s.error || 'Render failed'); setRendering(false); setStatus(id, 'error') }
+        if (s.status === 'unknown') { setRenderErr('Render job not found (server may have restarted)'); setRendering(false); setStatus(id, 'error') }
       })
     })()
     return () => stop()

@@ -38,7 +38,7 @@ export function pollRender(id: string, onTick: (s: RenderStatus) => void): () =>
     while (!stop) {
       const s = await getRenderStatus(id)
       onTick(s)
-      if (s.status === 'complete' || s.status === 'error') break
+      if (s.status === 'complete' || s.status === 'error' || s.status === 'unknown') break
       await new Promise((r) => setTimeout(r, 900))
     }
   }
