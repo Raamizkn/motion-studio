@@ -215,7 +215,12 @@ export function VideoEditor() {
   // ── AI command handling ──
   const runAI = async (prompt: string, context: string) => {
     const userMsg: ChatMessage = { id: Math.random().toString(36), role: 'user', text: prompt }
-    const pending: ChatMessage = { id: 'pending', role: 'ai', text: '…thinking', toolCalls: [] }
+    const pending: ChatMessage = {
+      id: 'pending',
+      role: 'ai',
+      text: useLive && project.composedHtml ? 'Reading your composition and planning the edit…' : 'Thinking through your request…',
+      toolCalls: [],
+    }
     setChat((c) => [...c, userMsg, pending])
 
     // Composed projects: Claude rewrites the whole composition, then we reload it.
@@ -286,6 +291,44 @@ export function VideoEditor() {
         .ed-msg.ai { align-self: flex-start; background: var(--surface); color: var(--text); border-bottom-left-radius: 4px; }
         .ed-msg-tools { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-top: 4px; padding-left: 4px; }
         .ed-msg-empty { color: var(--text-3); font-size: 13px; line-height: 1.55; text-align: center; margin: 40px 4px 0; }
+
+        /* Designed thinking / generation loading state */
+        .ed-think { align-self: flex-start; max-width: 92%; display: flex; flex-direction: column; gap: 10px; }
+        .ed-think-row { display: flex; align-items: center; gap: 8px; }
+        .ed-think-spark {
+          width: 26px; height: 26px; border-radius: 8px; flex: none; display: grid; place-items: center;
+          background: var(--accent-soft); color: var(--accent-2);
+          animation: edThinkPulse 1.4s ease-in-out infinite;
+        }
+        .ed-think-text {
+          font-size: 13px; color: var(--text-2); line-height: 1.4;
+          background: linear-gradient(90deg, var(--text-3) 0%, var(--text) 50%, var(--text-3) 100%);
+          background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
+          animation: edShimmer 1.8s linear infinite;
+        }
+        .ed-gen-card {
+          display: flex; align-items: center; gap: 12px; padding: 12px;
+          background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+        }
+        .ed-gen-stack { position: relative; width: 46px; height: 46px; flex: none; }
+        .ed-gen-thumb {
+          position: absolute; inset: 0; border-radius: 9px; border: 1px solid var(--border-strong);
+          background: linear-gradient(135deg, #8a3ffc33, #2dd4bf22);
+        }
+        .ed-gen-thumb:nth-child(1) { transform: rotate(-8deg) translate(-2px,1px); opacity: .5; }
+        .ed-gen-thumb:nth-child(2) { transform: rotate(5deg) translate(2px,-1px); opacity: .75; }
+        .ed-gen-thumb:nth-child(3) {
+          background: linear-gradient(135deg, var(--accent), #2dd4bf);
+          animation: edSpin 1.1s linear infinite;
+          display: grid; place-items: center; color: #fff;
+        }
+        .ed-gen-meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+        .ed-gen-title { font-size: 12.5px; font-weight: 600; color: var(--text); }
+        .ed-gen-queue { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-3); }
+        .ed-gen-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-2); animation: edThinkPulse 1.2s ease-in-out infinite; }
+        @keyframes edShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        @keyframes edThinkPulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+        @keyframes edSpin { to { transform: rotate(360deg); } }
         .ed-assist-foot { flex: none; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
         .ed-prompt {
           background: var(--bg-elev); border: 1px solid var(--border-strong);
@@ -374,14 +417,34 @@ export function VideoEditor() {
                 <p style={{ marginTop: 10 }}>Describe any change and I'll apply it — move elements, restyle text, add subtitles, reformat, or tighten transitions.</p>
               </div>
             )}
-            {chat.map((m) => (
-              <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
-                <div className={`ed-msg ${m.role}`}>{m.text}</div>
-                {m.toolCalls && m.toolCalls.length > 0 && (
-                  <div className="ed-msg-tools">{m.toolCalls.map((t, i) => <div key={i}>↳ {t.tool}</div>)}</div>
-                )}
-              </div>
-            ))}
+            {chat.map((m) =>
+              m.id === 'pending' ? (
+                <div key={m.id} className="ed-think">
+                  <div className="ed-think-row">
+                    <span className="ed-think-spark"><Icon name="sparkle" size={15} /></span>
+                    <span className="ed-think-text">{m.text}</span>
+                  </div>
+                  <div className="ed-gen-card">
+                    <div className="ed-gen-stack">
+                      <div className="ed-gen-thumb" />
+                      <div className="ed-gen-thumb" />
+                      <div className="ed-gen-thumb"><Icon name="sparkle" size={16} /></div>
+                    </div>
+                    <div className="ed-gen-meta">
+                      <span className="ed-gen-title">Composing your scene</span>
+                      <span className="ed-gen-queue"><span className="ed-gen-dot" /> In queue · working</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                  <div className={`ed-msg ${m.role}`}>{m.text}</div>
+                  {m.toolCalls && m.toolCalls.length > 0 && (
+                    <div className="ed-msg-tools">{m.toolCalls.map((t, i) => <div key={i}>↳ {t.tool}</div>)}</div>
+                  )}
+                </div>
+              ),
+            )}
           </div>
 
           <div className="ed-assist-foot">

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useStore } from '../store'
-import { FLOW_CONFIGS, PALETTES, defaultConfig, BUILTIN_THEMES } from '../data'
+import { FLOW_CONFIGS, PALETTES, defaultConfig, BUILTIN_THEMES, TEMPLATES } from '../data'
 import type { FlowType } from '../data'
 import type { AspectRatio } from '../types'
 import { ScenePreview, ASPECT_RATIO } from '../components/ScenePreview'
@@ -40,19 +40,21 @@ export function FlowSetup() {
   const flowId = (flow || 'create-new') as FlowType
   const config = FLOW_CONFIGS[flowId] || FLOW_CONFIGS['create-new']
 
-  const initialPrompt = params.get('prompt') || ''
+  // a template seeds the config the user then tweaks before generating
+  const tpl = TEMPLATES.find((t) => t.id === params.get('template'))
+  const initialPrompt = params.get('prompt') || tpl?.brief || (tpl ? `${tpl.name}. ${tpl.description}` : '')
   const [prompt, setPrompt] = useState(initialPrompt)
   const [fieldValues, setFieldValues] = useState<Record<string, string>>(() => {
     const defaults: Record<string, string> = {}
     config.quickFields.forEach((f) => { if (f.defaultValue) defaults[f.id] = f.defaultValue })
     return defaults
   })
-  const [palette, setPalette] = useState(config.palette)
-  const [themeId, setThemeId] = useState<string>('')
+  const [palette, setPalette] = useState(tpl?.config.palette || config.palette)
+  const [themeId, setThemeId] = useState<string>(tpl?.themeId || '')
   const [themePopOpen, setThemePopOpen] = useState(false)
   const userThemes = useStore((s) => s.userThemes)
-  const [aspect, setAspect] = useState<AspectRatio>(config.aspect)
-  const [durationSec, setDurationSec] = useState<number>(config.durationSec)
+  const [aspect, setAspect] = useState<AspectRatio>(tpl?.aspect || config.aspect)
+  const [durationSec, setDurationSec] = useState<number>(tpl?.durationSec || config.durationSec)
   const [voiceover, setVoiceover] = useState(false)
   const [voiceStyle, setVoiceStyle] = useState('warm')
   const [assets, setAssets] = useState<{ id: string; name: string; type: string; dataUrl: string }[]>([])
@@ -67,8 +69,10 @@ export function FlowSetup() {
     })
   }
 
-  // reset state when flow changes
+  // reset state when the flow changes — but never clobber a template's prefill on mount
+  const flowMounted = useRef(false)
   useEffect(() => {
+    if (!flowMounted.current) { flowMounted.current = true; return }
     const defaults: Record<string, string> = {}
     config.quickFields.forEach((f) => { if (f.defaultValue) defaults[f.id] = f.defaultValue })
     setFieldValues(defaults)
