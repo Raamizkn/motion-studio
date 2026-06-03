@@ -21,7 +21,7 @@ const DIMS: Record<string, { w: number; h: number }> = {
 /** Kick off a real Kinetic render on the backend. Returns the job id. */
 export async function startRender(project: VideoProject): Promise<string> {
   let html: string
-  let meta: { id: string; name: string; duration: number; fps: number; width: number; height: number }
+  let meta: { id: string; name: string; duration: number; fps: number; width: number; height: number; audioUrl?: string }
 
   if (project.composedHtml) {
     // Claude authored a full Hyperframes composition — render it verbatim.
@@ -40,6 +40,9 @@ export async function startRender(project: VideoProject): Promise<string> {
     const editor = useStore.getState().editors[project.id] || buildEditorState(project.frames, project.config)
     ;({ html, meta } = buildCompositionFromScenes(editor.scenes, project.config, project.name, editor.overlays))
   }
+
+  // mux the generated narration over the silent render, if present
+  if (project.narrationUrl) meta.audioUrl = project.narrationUrl
 
   const res = await fetch('/api/render', {
     method: 'POST',

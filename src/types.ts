@@ -139,6 +139,20 @@ export interface VideoProject {
   composedHtml?: string
   /** one-line summary of what Claude composed */
   composeSummary?: string
+  /** generated narration audio (served from /renders/audio/...) */
+  narrationUrl?: string
+  /** the spoken narration script, with rough per-line timing */
+  narrationScript?: NarrationLine[]
+  /** measured length of the narration audio in seconds */
+  narrationDuration?: number
+  /** voice persona used for the current narration */
+  narrationVoice?: string
+}
+
+export interface NarrationLine {
+  /** approximate start time in seconds */
+  t: number
+  text: string
 }
 
 export interface StudioTemplate {

@@ -82,6 +82,49 @@ export async function editCompositionAI(html: string, prompt: string): Promise<C
   }
 }
 
+// ── Narration / voiceover (ElevenLabs) ──────────────────────────────────────
+export interface NarrationResult {
+  ok: boolean
+  url?: string
+  script?: { t: number; text: string }[]
+  text?: string
+  duration?: number
+  voice?: string
+  error?: string
+  needsKey?: boolean
+}
+
+export async function narrationStatus(): Promise<{ ready: boolean; provider: string; voice?: string }> {
+  try {
+    const r = await fetch('/api/ai/narration/status')
+    return await r.json()
+  } catch { return { ready: false, provider: 'none' } }
+}
+
+/** Generate (script via Claude → speech via ElevenLabs) narration for a project. */
+export async function generateNarrationAI(input: {
+  id: string
+  html?: string
+  summary?: string
+  scenes?: string[]
+  prompt?: string
+  durationSec: number
+  voiceStyle?: string
+  /** override the spoken text instead of auto-writing it */
+  script?: string
+}): Promise<NarrationResult> {
+  try {
+    const r = await fetch('/api/ai/narration', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    return (await r.json()) as NarrationResult
+  } catch (e) {
+    return { ok: false, error: String((e as Error)?.message || e) }
+  }
+}
+
 // ── Storyboard generation ───────────────────────────────────────────────────
 export async function generateStoryboardAI(config: VideoProjectConfig): Promise<{ frames: StoryboardFrame[]; source: 'gemini' | 'fallback' }> {
   try {

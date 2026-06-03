@@ -6,9 +6,20 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
 const WORK = path.join(ROOT, '.renders')
+const FFMPEG = fs.existsSync('/opt/homebrew/bin/ffmpeg') ? '/opt/homebrew/bin/ffmpeg' : 'ffmpeg'
 
 /** in-memory job registry: id -> { status, progress, stage, url, error, log } */
 const jobs = new Map()
+
+// Map a "/renders/audio/x.mp3" URL (the only audio source we accept) to a real
+// on-disk path inside WORK. Reject anything that escapes the renders dir.
+function resolveAudio(audioUrl) {
+  if (!audioUrl || typeof audioUrl !== 'string') return null
+  const rel = audioUrl.replace(/^\/renders\//, '')
+  const file = path.join(WORK, rel)
+  if (!file.startsWith(WORK)) return null
+  return fs.existsSync(file) ? file : null
+}
 
 function readBody(req) {
   return new Promise((resolve, reject) => {
@@ -66,15 +77,42 @@ function startRender({ id, html, meta }) {
 
   child.on('close', (code) => {
     const file = path.join(dir, out)
-    if (code === 0 && fs.existsSync(file)) {
-      job.status = 'complete'
-      job.progress = 100
-      job.stage = 'Complete'
-      job.url = `/renders/${id}/out.mp4`
-    } else {
+    if (code !== 0 || !fs.existsSync(file)) {
       job.status = 'error'
       job.error = `Render exited ${code}`
+      return
     }
+    // Optional: mux narration audio over the silent render with ffmpeg.
+    const audioFile = resolveAudio(meta.audioUrl)
+    if (audioFile) {
+      job.stage = 'Adding narration'
+      job.progress = 99
+      const final = path.join(dir, 'final.mp4')
+      const ff = spawn(FFMPEG, [
+        '-y', '-i', file, '-i', audioFile,
+        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+        '-map', '0:v:0', '-map', '1:a:0', '-shortest', final,
+      ], { env: { ...process.env, PATH: `/opt/homebrew/bin:${process.env.PATH || ''}` } })
+      let ffLog = ''
+      ff.stderr.on('data', (b) => { ffLog += b.toString() })
+      ff.on('close', (fc) => {
+        if (fc === 0 && fs.existsSync(final)) {
+          job.status = 'complete'; job.progress = 100; job.stage = 'Complete'
+          job.url = `/renders/${id}/final.mp4`
+        } else {
+          // fall back to the silent render rather than failing outright
+          job.log += `\n[ffmpeg mux failed ${fc}] ${ffLog.slice(-300)}`
+          job.status = 'complete'; job.progress = 100; job.stage = 'Complete'
+          job.url = `/renders/${id}/out.mp4`
+        }
+      })
+      ff.on('error', () => { job.status = 'complete'; job.progress = 100; job.stage = 'Complete'; job.url = `/renders/${id}/out.mp4` })
+      return
+    }
+    job.status = 'complete'
+    job.progress = 100
+    job.stage = 'Complete'
+    job.url = `/renders/${id}/out.mp4`
   })
   child.on('error', (err) => {
     job.status = 'error'
@@ -97,7 +135,8 @@ export function renderPlugin() {
           const file = path.join(WORK, rel)
           if (fs.existsSync(file) && fs.statSync(file).isFile()) {
             const stat = fs.statSync(file)
-            res.setHeader('content-type', 'video/mp4')
+            const mime = file.endsWith('.mp3') ? 'audio/mpeg' : file.endsWith('.wav') ? 'audio/wav' : 'video/mp4'
+            res.setHeader('content-type', mime)
             res.setHeader('accept-ranges', 'bytes')
             const range = req.headers.range
             const m = range && /bytes=(\d+)-(\d*)/.exec(range)

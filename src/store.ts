@@ -7,6 +7,7 @@ import type {
   OverlayElement,
   TimelineClip,
   SceneElement,
+  NarrationLine,
 } from './types'
 import type { VibeTheme } from './data'
 import { generateStoryboard, buildEditorState, uid } from './data'
@@ -60,6 +61,7 @@ interface Store {
   duplicateProject: (id: string) => void
   setStatus: (id: string, status: VideoProject['status']) => void
   setComposedHtml: (id: string, html: string, summary?: string) => void
+  setNarration: (id: string, narration: { url: string; script?: NarrationLine[]; duration?: number; voice?: string } | null) => void
   setFrames: (id: string, frames: StoryboardFrame[]) => void
   updateFrame: (id: string, frameId: string, patch: Partial<StoryboardFrame>) => void
   reorderFrames: (id: string, frameIds: string[]) => void
@@ -173,6 +175,24 @@ export const useStore = create<Store>((set, get) => ({
     set((s) => {
       const projects = s.projects.map((p) =>
         p.id === id ? { ...p, composedHtml: html, composeSummary: summary ?? p.composeSummary, updatedAt: Date.now() } : p,
+      )
+      persist(projects)
+      return { projects }
+    }),
+
+  setNarration: (id, narration) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              narrationUrl: narration?.url,
+              narrationScript: narration?.script ?? (narration ? p.narrationScript : undefined),
+              narrationDuration: narration?.duration ?? (narration ? p.narrationDuration : undefined),
+              narrationVoice: narration?.voice ?? (narration ? p.narrationVoice : undefined),
+              updatedAt: Date.now(),
+            }
+          : p,
       )
       persist(projects)
       return { projects }

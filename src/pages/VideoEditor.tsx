@@ -14,7 +14,7 @@ import {
   ExportModal,
   PublishModal,
 } from './editorParts'
-import { editorCommandAI, editCompositionAI } from '../ai'
+import { editorCommandAI, editCompositionAI, generateNarrationAI } from '../ai'
 import type { EditCall } from '../ai'
 import { meshBg } from '../sceneModel'
 import { LiveCanvas } from '../components/LiveCanvas'
@@ -54,7 +54,10 @@ export function VideoEditor() {
   const [tour, setTour] = useState(() => localStorage.getItem(`ms-tour-${id}`) !== '1')
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
   const rafRef = useRef<number>()
+  const [narrating, setNarrating] = useState(false)
+  const [narrErr, setNarrErr] = useState<string | null>(null)
 
   useEffect(() => { if (id) ensureEditor(id) }, [id, ensureEditor])
 
@@ -140,6 +143,22 @@ export function VideoEditor() {
     }
   }, [time, playing, videoUrl, duration])
 
+  // ── narration audio: sync the <audio> to the preview transport ──
+  // Only drives the live preview (the iframe has no sound of its own). When the
+  // exported MP4 plays it already carries muxed audio, so we stay muted there.
+  const narrationUrl = project?.narrationUrl
+  useEffect(() => {
+    const a = audioRef.current
+    if (!a || !narrationUrl || !useLive) return
+    if (playing) {
+      if (Math.abs(a.currentTime - time) > 0.25) { try { a.currentTime = time } catch { /* */ } }
+      a.play().catch(() => {})
+    } else {
+      a.pause()
+      if (Math.abs(a.currentTime - time) > 0.05) { try { a.currentTime = Math.min(time, duration) } catch { /* */ } }
+    }
+  }, [playing, time, narrationUrl, useLive, duration])
+
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -182,6 +201,32 @@ export function VideoEditor() {
   const startExportRender = async () => {
     setRendering(true); setProgress(0); setRenderErr(null)
     try { await startRender(project) } catch (e) { setRenderErr(String(e)); setRendering(false) }
+  }
+
+  // ── generate narration (Claude writes the script → ElevenLabs speaks it) ──
+  const genNarration = async () => {
+    if (narrating) return
+    setNarrating(true); setNarrErr(null)
+    try {
+      const res = await generateNarrationAI({
+        id,
+        html: project.composedHtml,
+        summary: project.composeSummary,
+        prompt: project.config.prompt,
+        durationSec: duration,
+        voiceStyle: project.config.voiceover?.style || 'warm',
+      })
+      if (res.ok && res.url) {
+        store.setNarration(id, { url: res.url, script: res.script, duration: res.duration, voice: res.voice })
+        setVideoUrl(null) // any exported MP4 is now stale (no narration baked in)
+      } else {
+        setNarrErr(res.needsKey ? 'Add your ElevenLabs API key to .env to enable narration.' : (res.error || 'Narration failed'))
+      }
+    } catch (e) {
+      setNarrErr(String((e as Error)?.message || e))
+    } finally {
+      setNarrating(false)
+    }
   }
 
   // record the current composition into undo history before replacing it
@@ -358,6 +403,7 @@ export function VideoEditor() {
         .ed-cmdbtn { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-family: var(--font-display); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
         .ed-cmdbtn:disabled { opacity: 0.5; cursor: default; }
         .ed-cmdbtn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+        .ed-cmdbtn.active { background: var(--accent-soft); border-color: rgba(138,63,252,0.4); color: var(--accent-2); }
         .ed-cmdbtn.icon { width: 32px; padding: 0; justify-content: center; }
         .ed-time { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); min-width: 96px; text-align: center; }
         .ed-sep { width: 1px; height: 20px; background: var(--border-strong); }
@@ -378,6 +424,12 @@ export function VideoEditor() {
           background: var(--bg-elev); border: 1px solid var(--red);
           padding: 10px 14px; border-radius: 12px;
           color: var(--red); font-size: 13px; display: flex; gap: 10px; align-items: center;
+        }
+        .ed-narrating {
+          position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+          background: var(--bg-elev); border: 1px solid var(--border-strong);
+          padding: 8px 14px; border-radius: 9999px; box-shadow: var(--shadow-pop);
+          color: var(--text-2); font-size: 12.5px; display: flex; gap: 9px; align-items: center; z-index: 30;
         }
         .ed-timeline-wrap { flex: none; }
 
@@ -472,6 +524,17 @@ export function VideoEditor() {
           <button className="ed-cmdbtn icon" disabled={useLive ? compHist.current.future.length === 0 : !store.canRedo(id)} onClick={() => (useLive ? compRedo() : store.redo(id))} aria-label="Redo"><Icon name="redo" size={15} /></button>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }} data-tour="export">
             <span className="ed-cmdbtn"><Icon name="image" size={14} /> {aspect}</span>
+            {useLive && (
+              <button
+                className={`ed-cmdbtn${narrationUrl ? ' active' : ''}`}
+                onClick={genNarration}
+                disabled={narrating}
+                title={narrationUrl ? 'Regenerate narration' : 'Generate AI narration'}
+              >
+                <Icon name="sparkle" size={14} />
+                {narrating ? 'Narrating…' : narrationUrl ? 'Re-narrate' : 'Narrate'}
+              </button>
+            )}
             <button className="ed-cmdbtn" onClick={() => setExportOpen(true)}><Icon name="download" size={14} /> Export</button>
             <button className="ed-cmdbtn primary" onClick={() => setPublishOpen(true)}><Icon name="share" size={14} /> Publish</button>
           </div>
@@ -510,7 +573,20 @@ export function VideoEditor() {
                 <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />
               </div>
             )}
+            {/* narration audio — synced to the preview transport */}
+            {narrationUrl && <audio ref={audioRef} src={narrationUrl} preload="auto" style={{ display: 'none' }} />}
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
+            {narrating && (
+              <div className="ed-narrating">
+                <span className="ed-think-spark"><Icon name="sparkle" size={14} /></span>
+                Writing & voicing narration…
+              </div>
+            )}
+            {narrErr && (
+              <div className="ed-err" onClick={() => setNarrErr(null)}>
+                <Icon name="close" size={16} /> {narrErr}
+              </div>
+            )}
             {renderErr && (
               <div className="ed-err">
                 <Icon name="close" size={16} /> {renderErr}
