@@ -6,9 +6,19 @@ export type TransitionKind = 'cut' | 'fade' | 'slide' | 'wipe' | 'zoom'
 export type ProjectStatus =
   | 'setup'
   | 'storyboard_ready'
+  | 'composing'
   | 'rendering'
   | 'complete'
   | 'error'
+
+/** Optional AI-generated voiceover/narration config. */
+export interface VoiceoverConfig {
+  enabled: boolean
+  /** voice persona, e.g. 'warm', 'energetic', 'calm-narrator' */
+  style?: string
+  /** the spoken script — authored by Claude or the user */
+  script?: string
+}
 
 export interface BrandData {
   title: string
@@ -31,6 +41,12 @@ export interface VideoProjectConfig {
   templateId?: string
   assetIds: string[]
   assets?: UploadedAsset[]
+  /** id of the VibeTheme (brand design system) Claude composes from */
+  themeId?: string
+  /** AI voiceover/narration request */
+  voiceover?: VoiceoverConfig
+  /** which Vibe Motion flow created this project */
+  flow?: string
 }
 
 export type SceneKind =
@@ -119,6 +135,10 @@ export interface VideoProject {
   createdAt: number
   updatedAt: number
   thumbnail?: SceneSeed
+  /** full Claude-authored Hyperframes composition (the actual render source) */
+  composedHtml?: string
+  /** one-line summary of what Claude composed */
+  composeSummary?: string
 }
 
 export interface StudioTemplate {

@@ -1,9 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './pages/Dashboard'
 import { ProjectSetup } from './pages/ProjectSetup'
 import { FlowSetup } from './pages/FlowSetup'
-import { StoryboardEditor } from './pages/StoryboardEditor'
+import { GenerateScreen } from './pages/GenerateScreen'
 import { VideoEditor } from './pages/VideoEditor'
 import { Icon } from './components/Icon'
 import { Link } from 'react-router-dom'
@@ -217,6 +217,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   )
 }
 
+function RedirectToGenerate() {
+  const { id } = useParams()
+  return <Navigate to={`/studio/projects/${id}/generate`} replace />
+}
+
 function Placeholder() {
   const loc = useLocation()
   const name = loc.pathname.replace('/', '') || 'page'
@@ -253,7 +258,10 @@ export function App() {
         <Route path="/studio/create/:flow" element={<Shell><FlowSetup /></Shell>} />
         {/* Generic new project (legacy / advanced) */}
         <Route path="/studio/new" element={<Shell><ProjectSetup /></Shell>} />
-        <Route path="/studio/projects/:id/storyboard" element={<Shell><StoryboardEditor /></Shell>} />
+        {/* Prompt → video pipeline: compose + render loading screen (no storyboard) */}
+        <Route path="/studio/projects/:id/generate" element={<Shell><GenerateScreen /></Shell>} />
+        {/* Legacy storyboard route now redirects into the generate pipeline */}
+        <Route path="/studio/projects/:id/storyboard" element={<RedirectToGenerate />} />
         {/* Editor is full-screen — no shell */}
         <Route path="/studio/projects/:id/editor" element={<VideoEditor />} />
         <Route path="*" element={<Shell><Placeholder /></Shell>} />

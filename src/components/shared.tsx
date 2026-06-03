@@ -6,6 +6,7 @@ export function StatusBadge({ status }: { status: ProjectStatus }) {
   const map: Record<ProjectStatus, { label: string; color: string; bg: string }> = {
     setup: { label: 'Draft', color: 'var(--text-2)', bg: 'var(--surface-2)' },
     storyboard_ready: { label: 'Storyboard', color: '#c8b3ff', bg: 'var(--accent-soft)' },
+    composing: { label: 'Composing', color: '#c8b3ff', bg: 'var(--accent-soft)' },
     rendering: { label: 'Rendering', color: 'var(--amber)', bg: 'rgba(242,184,78,.14)' },
     complete: { label: 'Complete', color: 'var(--green)', bg: 'rgba(58,210,127,.14)' },
     error: { label: 'Error', color: 'var(--red)', bg: 'rgba(255,93,93,.14)' },

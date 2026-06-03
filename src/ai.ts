@@ -37,6 +37,20 @@ export async function composeVideoAI(input: {
   durationSec: number
   palette: string[]
   brand?: { title?: string; description?: string }
+  /** brand design system (colors/fonts/logo) Claude should commit to */
+  theme?: {
+    name?: string
+    register?: string
+    colors?: Record<string, string | undefined>
+    titleFont?: string
+    bodyFont?: string
+    logoText?: string
+    styleNotes?: string
+  }
+  /** https:// or data: URLs of user media to feature in the video */
+  media?: string[]
+  /** request an AI-authored narration script + voiceover */
+  voiceover?: { enabled: boolean; style?: string }
 }): Promise<ComposeResult> {
   try {
     const r = await fetch('/api/ai/compose', {

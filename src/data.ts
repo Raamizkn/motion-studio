@@ -10,6 +10,7 @@ import type {
   EditorLayer,
   OverlayElement,
   ModelTier,
+  AspectRatio,
 } from './types'
 import { buildScenes } from './sceneModel'
 

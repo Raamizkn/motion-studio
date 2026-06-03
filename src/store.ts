@@ -8,9 +8,26 @@ import type {
   TimelineClip,
   SceneElement,
 } from './types'
+import type { VibeTheme } from './data'
 import { generateStoryboard, buildEditorState, uid } from './data'
 
 const LS_KEY = 'motion-studio/projects/v1'
+const THEME_KEY = 'motion-studio/themes/v1'
+
+function loadThemes(): VibeTheme[] {
+  try {
+    return JSON.parse(localStorage.getItem(THEME_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+function persistThemes(themes: VibeTheme[]) {
+  try {
+    localStorage.setItem(THEME_KEY, JSON.stringify(themes))
+  } catch {
+    /* ignore quota */
+  }
+}
 
 function load(): VideoProject[] {
   try {
@@ -29,6 +46,9 @@ function persist(projects: VideoProject[]) {
 
 interface Store {
   projects: VideoProject[]
+  userThemes: VibeTheme[]
+  addTheme: (theme: Omit<VibeTheme, 'id' | 'builtin'>) => VibeTheme
+  deleteTheme: (id: string) => void
   editors: Record<string, EditorState>
   // undo/redo stacks per project
   history: Record<string, { past: EditorState[]; future: EditorState[] }>
@@ -39,6 +59,7 @@ interface Store {
   deleteProject: (id: string) => void
   duplicateProject: (id: string) => void
   setStatus: (id: string, status: VideoProject['status']) => void
+  setComposedHtml: (id: string, html: string, summary?: string) => void
   setFrames: (id: string, frames: StoryboardFrame[]) => void
   updateFrame: (id: string, frameId: string, patch: Partial<StoryboardFrame>) => void
   reorderFrames: (id: string, frameIds: string[]) => void
@@ -71,8 +92,24 @@ interface Store {
 
 export const useStore = create<Store>((set, get) => ({
   projects: load(),
+  userThemes: loadThemes(),
   editors: {},
   history: {},
+
+  addTheme: (theme) => {
+    const created: VibeTheme = { ...theme, id: uid('theme'), builtin: false }
+    const userThemes = [created, ...get().userThemes]
+    persistThemes(userThemes)
+    set({ userThemes })
+    return created
+  },
+
+  deleteTheme: (id) =>
+    set((s) => {
+      const userThemes = s.userThemes.filter((t) => t.id !== id)
+      persistThemes(userThemes)
+      return { userThemes }
+    }),
 
   createProject: (name, config) => {
     const now = Date.now()
@@ -80,7 +117,7 @@ export const useStore = create<Store>((set, get) => ({
     const project: VideoProject = {
       id: uid('proj'),
       name,
-      status: 'storyboard_ready',
+      status: 'setup',
       config,
       frames,
       createdAt: now,
@@ -128,6 +165,15 @@ export const useStore = create<Store>((set, get) => ({
   setStatus: (id, status) =>
     set((s) => {
       const projects = s.projects.map((p) => (p.id === id ? { ...p, status, updatedAt: Date.now() } : p))
+      persist(projects)
+      return { projects }
+    }),
+
+  setComposedHtml: (id, html, summary) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id ? { ...p, composedHtml: html, composeSummary: summary ?? p.composeSummary, updatedAt: Date.now() } : p,
+      )
       persist(projects)
       return { projects }
     }),

@@ -21,18 +21,21 @@
   --n-110: #0f0f0f;
   --n-120: #000000;
 
-  /* Surfaces (dark) */
-  --bg: #0f0f0f;
-  --bg-elev: #171717;
-  --surface: #1a1a1a;
-  --surface-2: #202020;
-  --surface-3: #2a2a2a;
-  --surface-hover: #242424;
+  /* Surfaces (dark) — Director / Vibe Motion exact ramp */
+  --bg: #0f0f0f;          /* backdrop */
+  --bg-elev: #171717;     /* panels / frames */
+  --surface: #212121;     /* inputs / fields / list items */
+  --surface-2: #2a2a2a;
+  --surface-3: #2e2e2e;
+  --surface-hover: #262626;
 
   /* Borders */
-  --border: #232323;
-  --border-strong: #333333;
+  --border: #212121;        /* panel hairline */
+  --border-strong: #2e2e2e; /* input / control border */
   --border-faint: #1c1c1c;
+
+  /* Director panel radius */
+  --r-panel: 24px;
 
   /* Text */
   --text: #ffffff;

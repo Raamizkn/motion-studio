@@ -11,11 +11,36 @@ export interface RenderStatus {
   error: string | null
 }
 
+const DIMS: Record<string, { w: number; h: number }> = {
+  '16:9': { w: 1920, h: 1080 },
+  '9:16': { w: 1080, h: 1920 },
+  '1:1': { w: 1080, h: 1080 },
+  '4:5': { w: 1080, h: 1350 },
+}
+
 /** Kick off a real Kinetic render on the backend. Returns the job id. */
 export async function startRender(project: VideoProject): Promise<string> {
-  // render the exact scene graph the editor canvas shows (elements + overlays)
-  const editor = useStore.getState().editors[project.id] || buildEditorState(project.frames, project.config)
-  const { html, meta } = buildCompositionFromScenes(editor.scenes, project.config, project.name, editor.overlays)
+  let html: string
+  let meta: { id: string; name: string; duration: number; fps: number; width: number; height: number }
+
+  if (project.composedHtml) {
+    // Claude authored a full Hyperframes composition — render it verbatim.
+    const dim = DIMS[project.config.aspect] || DIMS['16:9']
+    html = project.composedHtml
+    meta = {
+      id: 'main',
+      name: project.name,
+      duration: project.config.durationSec,
+      fps: project.config.fps,
+      width: dim.w,
+      height: dim.h,
+    }
+  } else {
+    // legacy: render the scene graph the editor canvas shows (elements + overlays)
+    const editor = useStore.getState().editors[project.id] || buildEditorState(project.frames, project.config)
+    ;({ html, meta } = buildCompositionFromScenes(editor.scenes, project.config, project.name, editor.overlays))
+  }
+
   const res = await fetch('/api/render', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
