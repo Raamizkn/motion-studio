@@ -88,10 +88,17 @@ function startRender({ id, html, meta }) {
       job.stage = 'Adding narration'
       job.progress = 99
       const final = path.join(dir, 'final.mp4')
+      // Keep the FULL video length (narration is <= video). apad pads the audio
+      // with trailing silence, then -t clamps the output to the video duration —
+      // so a shorter narration never truncates the film.
+      const vdur = Number(meta.duration) || 0
       const ff = spawn(FFMPEG, [
         '-y', '-i', file, '-i', audioFile,
         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
-        '-map', '0:v:0', '-map', '1:a:0', '-shortest', final,
+        '-af', 'apad',
+        '-map', '0:v:0', '-map', '1:a:0',
+        ...(vdur ? ['-t', String(vdur)] : ['-shortest']),
+        final,
       ], { env: { ...process.env, PATH: `/opt/homebrew/bin:${process.env.PATH || ''}` } })
       let ffLog = ''
       ff.stderr.on('data', (b) => { ffLog += b.toString() })

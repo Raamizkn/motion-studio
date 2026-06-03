@@ -14,8 +14,10 @@ export type ProjectStatus =
 /** Optional AI-generated voiceover/narration config. */
 export interface VoiceoverConfig {
   enabled: boolean
-  /** voice persona, e.g. 'warm', 'energetic', 'calm-narrator' */
+  /** delivery style — 'warm' | 'energetic' | 'calm' | 'confident' */
   style?: string
+  /** chosen ElevenLabs voice avatar (voice_id) */
+  voiceId?: string
   /** the spoken script — authored by Claude or the user */
   script?: string
 }
@@ -172,7 +174,7 @@ export interface StudioTemplate {
   /** built-in theme this template composes with */
   themeId?: string
   /** visual register — also drives the template card's preview style */
-  register?: 'editorial' | 'product' | 'bold' | 'minimal'
+  register?: 'editorial' | 'product' | 'bold' | 'minimal' | 'infographic' | 'poster' | 'presentation'
 }
 
 export type TemplateCategory =
@@ -182,6 +184,9 @@ export type TemplateCategory =
   | 'Social'
   | 'Motion'
   | 'Explainer'
+  | 'Presentation'
+  | 'Infographic'
+  | 'Poster'
 
 // ── Editor types ─────────────────────────────────────────────────────────
 

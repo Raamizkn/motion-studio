@@ -4,9 +4,12 @@ import { useStore } from '../store'
 import { FLOW_CONFIGS, PALETTES, defaultConfig, BUILTIN_THEMES, TEMPLATES } from '../data'
 import type { FlowType } from '../data'
 import type { AspectRatio } from '../types'
-import { ScenePreview, ASPECT_RATIO } from '../components/ScenePreview'
+import { ASPECT_RATIO } from '../components/ScenePreview'
+import { TemplatePreview } from '../components/cards'
 import { Icon } from '../components/Icon'
 import { ThemePicker } from '../components/ThemeStudio'
+import { narrationVoices } from '../ai'
+import type { VoiceAvatar } from '../ai'
 
 const ASPECTS: { value: AspectRatio; label: string }[] = [
   { value: '16:9', label: '16:9 · Landscape' },
@@ -57,6 +60,28 @@ export function FlowSetup() {
   const [durationSec, setDurationSec] = useState<number>(tpl?.durationSec || config.durationSec)
   const [voiceover, setVoiceover] = useState(false)
   const [voiceStyle, setVoiceStyle] = useState('warm')
+  const [voices, setVoices] = useState<VoiceAvatar[]>([])
+  const [voiceId, setVoiceId] = useState('')
+  const [previewVoice, setPreviewVoice] = useState<string | null>(null)
+  const previewAudio = useRef<HTMLAudioElement | null>(null)
+  useEffect(() => {
+    let alive = true
+    narrationVoices().then((c) => {
+      if (!alive) return
+      setVoices(c.voices)
+      setVoiceId((cur) => cur || c.voices[0]?.id || c.defaultVoiceId)
+    })
+    return () => { alive = false; previewAudio.current?.pause() }
+  }, [])
+
+  const playPreview = (v: VoiceAvatar) => {
+    if (!v.previewUrl) return
+    const a = previewAudio.current || (previewAudio.current = new Audio())
+    if (previewVoice === v.id) { a.pause(); setPreviewVoice(null); return }
+    a.src = v.previewUrl
+    a.onended = () => setPreviewVoice(null)
+    a.play().then(() => setPreviewVoice(v.id)).catch(() => setPreviewVoice(null))
+  }
   const [assets, setAssets] = useState<{ id: string; name: string; type: string; dataUrl: string }[]>([])
   const [generating, setGenerating] = useState(false)
 
@@ -118,7 +143,7 @@ export function FlowSetup() {
         model: 'standard',
         flow: flowId,
         themeId: themeId || undefined,
-        voiceover: voiceover ? { enabled: true, style: voiceStyle } : undefined,
+        voiceover: voiceover ? { enabled: true, style: voiceStyle, voiceId: voiceId || undefined } : undefined,
         assets: assets.length ? assets : undefined,
         assetIds: assets.map((a) => a.id),
       }),
@@ -126,13 +151,17 @@ export function FlowSetup() {
     nav(`/studio/projects/${project.id}/generate`)
   }
 
-  const seed = {
-    kind: 'hero' as const,
-    palette,
-    headline: prompt.trim() ? prompt.slice(0, 24) : config.title,
-    lines: [config.subtitle],
-    accent: palette[0],
+  // pick the preview register: an explicit template wins, else map the chosen
+  // theme's register string, else default to the dark product look.
+  const themeReg = BUILTIN_THEMES.find((t) => t.id === themeId)?.register || ''
+  const mapReg = (s: string): 'editorial' | 'product' | 'bold' | 'minimal' => {
+    const t = s.toLowerCase()
+    if (t.includes('editorial') || t.includes('institutional')) return 'editorial'
+    if (t.includes('minimal') || t.includes('luxury')) return 'minimal'
+    if (t.includes('playful') || t.includes('consumer') || t.includes('bold')) return 'bold'
+    return 'product'
   }
+  const previewRegister = (tpl?.register as any) || mapReg(themeReg)
 
   return (
     <div className="flow-setup">
@@ -267,6 +296,37 @@ export function FlowSetup() {
           border-color: var(--accent);
           color: var(--accent-2);
         }
+
+        /* Voice avatar cards (not thin buttons) */
+        .fs-sublabel {
+          font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+          color: var(--text-4); margin: 14px 0 8px;
+        }
+        .fs-voice-grid {
+          display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+        }
+        .fs-voice-card {
+          text-align: center; display: flex; flex-direction: column; align-items: center; gap: 7px;
+          padding: 14px 10px 12px; border-radius: 16px;
+          border: 1px solid var(--border); background: var(--surface);
+          cursor: pointer; transition: border-color .14s, background .14s, transform .14s;
+        }
+        .fs-voice-card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+        .fs-voice-card.selected { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+        .fs-voice-orb {
+          position: relative; width: 64px; height: 64px; border-radius: 50%; border: none; padding: 0;
+          cursor: pointer; box-shadow: 0 6px 18px rgba(0,0,0,.35); transition: transform .14s;
+          filter: saturate(1.05);
+        }
+        .fs-voice-orb:hover { transform: scale(1.06); }
+        .fs-voice-play {
+          position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+          opacity: 0; transition: opacity .14s; background: rgba(0,0,0,.28); border-radius: 50%;
+        }
+        .fs-voice-orb:hover .fs-voice-play, .fs-voice-card.selected .fs-voice-play { opacity: 1; }
+        .fs-voice-name { font-size: 13px; font-weight: 650; color: var(--text); }
+        .fs-voice-desc { font-size: 10.5px; line-height: 1.35; color: var(--text-3); }
+        .fs-wrap { flex-wrap: wrap; }
 
         /* Assist suggestions */
         .fs-assist {
@@ -494,17 +554,50 @@ export function FlowSetup() {
               </button>
             </div>
             {voiceover && (
-              <div className="fs-radio-group" style={{ marginTop: 8 }}>
-                {VOICE_STYLES.map((v) => (
-                  <button
-                    key={v.value}
-                    className={`fs-radio${voiceStyle === v.value ? ' selected' : ''}`}
-                    onClick={() => setVoiceStyle(v.value)}
-                  >
-                    {v.label}
-                  </button>
-                ))}
-              </div>
+              <>
+                {/* Voice avatars — pick who reads the narration; tap the orb to preview */}
+                <div className="fs-sublabel">Voice</div>
+                <div className="fs-voice-grid">
+                  {voices.map((v) => {
+                    const g = v.gradient || ['#8a3ffc', '#2dd4bf']
+                    const playing = previewVoice === v.id
+                    return (
+                      <div
+                        key={v.id}
+                        className={`fs-voice-card${voiceId === v.id ? ' selected' : ''}`}
+                        onClick={() => setVoiceId(v.id)}
+                      >
+                        <button
+                          type="button"
+                          className="fs-voice-orb"
+                          style={{ background: `radial-gradient(circle at 32% 28%, ${g[0]}, ${g[1]} 78%)` }}
+                          onClick={(e) => { e.stopPropagation(); playPreview(v) }}
+                          aria-label={`Preview ${v.name}`}
+                        >
+                          <span className="fs-voice-play">
+                            <Icon name={playing ? 'pause' : 'play'} size={18} />
+                          </span>
+                        </button>
+                        <div className="fs-voice-name">{v.name}</div>
+                        <div className="fs-voice-desc">{v.description}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Delivery style — adjusts how the chosen voice reads */}
+                <div className="fs-sublabel">Delivery</div>
+                <div className="fs-radio-group fs-wrap">
+                  {VOICE_STYLES.map((v) => (
+                    <button
+                      key={v.value}
+                      className={`fs-radio${voiceStyle === v.value ? ' selected' : ''}`}
+                      onClick={() => setVoiceStyle(v.value)}
+                    >
+                      {v.label}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -628,7 +721,7 @@ export function FlowSetup() {
       {/* ── Right: live preview ── */}
       <div className="fs-preview">
         <div className="fs-preview-card">
-          <ScenePreview seed={seed} ratio={ASPECT_RATIO[aspect]} />
+          <TemplatePreview register={previewRegister} palette={palette} kicker={config.title} title={prompt.trim() ? prompt.slice(0, 32) : config.subtitle} ratio={ASPECT_RATIO[aspect]} />
         </div>
 
         <div className="fs-preview-meta">

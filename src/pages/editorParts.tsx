@@ -426,14 +426,19 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
 export function ExportModal({ open, onClose, project, videoUrl, onRender, rendering, progress = 0, stage }: { open: boolean; onClose: () => void; project: VideoProject; videoUrl: string | null; onRender: () => void; rendering?: boolean; progress?: number; stage?: string }) {
   const [format, setFormat] = useState('MP4')
   const [res, setRes] = useState('1080p')
-  const [subs, setSubs] = useState(true)
+  const [withSound, setWithSound] = useState(true)
+  const hasNarr = !!project.narrationUrl
+  // the muxed file is final.mp4; the silent intermediate is out.mp4
+  const silentUrl = videoUrl ? videoUrl.replace(/\/final\.mp4$/, '/out.mp4') : null
+  const downloadUrl = hasNarr && !withSound && silentUrl ? silentUrl : videoUrl
+  const dlName = `${project.name}${hasNarr && !withSound ? ' (silent)' : ''}.mp4`
   return (
     <Modal open={open} onClose={onClose} title="Export video" width={460}
       footer={
         videoUrl ? (
           <>
             <button className="btn ghost" onClick={onClose}>Close</button>
-            <a className="btn primary" href={videoUrl} download={`${project.name}.mp4`}><Icon name="download" size={15} /> Download {format}</a>
+            <a className="btn primary" href={downloadUrl || videoUrl} download={dlName}><Icon name="download" size={15} /> Download {format}</a>
           </>
         ) : rendering ? (
           <>
@@ -456,13 +461,16 @@ export function ExportModal({ open, onClose, project, videoUrl, onRender, render
           </div>
         </Field>
         <Field label="Resolution"><Segmented value={res} onChange={setRes} options={[{ value: '720p', label: '720p' }, { value: '1080p', label: '1080p' }, { value: '4K', label: '4K' }]} /></Field>
-        <Field label="Include subtitles">
-          <button onClick={() => setSubs((s) => !s)} style={{ width: 42, height: 24, borderRadius: 99, background: subs ? 'var(--accent)' : 'var(--surface-3)', position: 'relative', transition: 'background .15s' }} aria-label="Toggle subtitles">
-            <span style={{ position: 'absolute', top: 2, left: subs ? 20 : 2, width: 20, height: 20, borderRadius: 99, background: '#fff', transition: 'left .15s' }} />
-          </button>
-        </Field>
+        {hasNarr && (
+          <Field label="Narration audio">
+            <button onClick={() => setWithSound((s) => !s)} style={{ width: 42, height: 24, borderRadius: 99, background: withSound ? 'var(--accent)' : 'var(--surface-3)', position: 'relative', transition: 'background .15s' }} aria-label="Toggle narration audio">
+              <span style={{ position: 'absolute', top: 2, left: withSound ? 20 : 2, width: 20, height: 20, borderRadius: 99, background: '#fff', transition: 'left .15s' }} />
+            </button>
+            <span style={{ marginLeft: 10, fontSize: 12.5, color: 'var(--text-3)' }}>{withSound ? 'Download with sound' : 'Download silent'}</span>
+          </Field>
+        )}
         {videoUrl ? (
-          <video src={videoUrl} controls style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
+          <video src={downloadUrl || videoUrl} controls style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
         ) : rendering ? (
           <div style={{ marginTop: 2 }}>
             <div style={{ height: 6, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden' }}>

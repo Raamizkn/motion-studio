@@ -95,6 +95,7 @@ export function GenerateScreen() {
               prompt: project.config.prompt,
               durationSec: result.duration || project.config.durationSec,
               voiceStyle: project.config.voiceover.style || 'warm',
+              voiceId: project.config.voiceover.voiceId,
             })
             if (narr.ok && narr.url) {
               setNarration(project.id, { url: narr.url, script: narr.script, duration: narr.duration, voice: narr.voice })

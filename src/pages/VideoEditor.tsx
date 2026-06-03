@@ -59,6 +59,8 @@ export function VideoEditor() {
   const [narrating, setNarrating] = useState(false)
   const [narrErr, setNarrErr] = useState<string | null>(null)
   const [narrNonce, setNarrNonce] = useState(0) // remounts <audio> so a re-narration reloads
+  const [scriptOpen, setScriptOpen] = useState(false)
+  const [showCaptions, setShowCaptions] = useState(true)
 
   useEffect(() => { if (id) ensureEditor(id) }, [id, ensureEditor])
 
@@ -176,6 +178,10 @@ export function VideoEditor() {
     return <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>Loading editor…</div>
   }
 
+  // active subtitle cue = the last cue whose start time has passed the playhead
+  const cues = project.narrationScript || []
+  const caption = cues.length ? (cues.filter((c) => c.t <= time + 0.05).pop()?.text || '') : ''
+
   const aspect = project.config.aspect
   const currentScene = editor.scenes.find((s) => time >= s.start && time < s.end) || editor.scenes[0]
   // selection can be a scene element (in the current scene) or a persistent overlay
@@ -205,7 +211,8 @@ export function VideoEditor() {
   }
 
   // ── generate narration (Claude writes the script → ElevenLabs speaks it) ──
-  const genNarration = async () => {
+  // Pass a scriptOverride to re-voice an edited script instead of auto-writing.
+  const genNarration = async (scriptOverride: string | null = null) => {
     if (narrating) return
     setNarrating(true); setNarrErr(null)
     try {
@@ -216,6 +223,8 @@ export function VideoEditor() {
         prompt: project.config.prompt,
         durationSec: duration,
         voiceStyle: project.config.voiceover?.style || 'warm',
+        voiceId: project.config.voiceover?.voiceId,
+        script: scriptOverride ?? undefined,
       })
       if (res.ok && res.url) {
         store.setNarration(id, { url: res.url, script: res.script, duration: res.duration, voice: res.voice })
@@ -433,6 +442,16 @@ export function VideoEditor() {
           padding: 8px 14px; border-radius: 9999px; box-shadow: var(--shadow-pop);
           color: var(--text-2); font-size: 12.5px; display: flex; gap: 9px; align-items: center; z-index: 30;
         }
+        .ed-caption {
+          position: absolute; bottom: 7%; left: 50%; transform: translateX(-50%); z-index: 28;
+          max-width: 82%; text-align: center; pointer-events: none;
+        }
+        .ed-caption span {
+          display: inline; box-decoration-break: clone; -webkit-box-decoration-break: clone;
+          background: rgba(0,0,0,.72); color: #fff; padding: 5px 12px; border-radius: 8px;
+          font-size: 17px; line-height: 1.5; font-weight: 600; letter-spacing: .005em;
+          text-shadow: 0 1px 2px rgba(0,0,0,.5);
+        }
         .ed-timeline-wrap { flex: none; }
 
         /* ── Right drawer ── */
@@ -529,12 +548,21 @@ export function VideoEditor() {
             {useLive && (
               <button
                 className={`ed-cmdbtn${narrationUrl ? ' active' : ''}`}
-                onClick={genNarration}
+                onClick={() => (narrationUrl ? setScriptOpen(true) : genNarration())}
                 disabled={narrating}
-                title={narrationUrl ? 'Regenerate narration' : 'Generate AI narration'}
+                title={narrationUrl ? 'Edit & re-voice narration' : 'Generate AI narration'}
               >
                 <Icon name="sparkle" size={14} />
-                {narrating ? 'Narrating…' : narrationUrl ? 'Re-narrate' : 'Narrate'}
+                {narrating ? 'Narrating…' : narrationUrl ? 'Narration' : 'Narrate'}
+              </button>
+            )}
+            {useLive && narrationUrl && (
+              <button
+                className={`ed-cmdbtn${showCaptions ? ' active' : ''}`}
+                onClick={() => setShowCaptions((s) => !s)}
+                title="Toggle subtitles"
+              >
+                <Icon name="type" size={14} /> CC
               </button>
             )}
             <button className="ed-cmdbtn" onClick={() => setExportOpen(true)}><Icon name="download" size={14} /> Export</button>
@@ -577,6 +605,10 @@ export function VideoEditor() {
             )}
             {/* narration audio — synced to the preview transport */}
             {narrationUrl && <audio key={narrNonce} ref={audioRef} src={`${narrationUrl}?v=${narrNonce}`} preload="auto" style={{ display: 'none' }} />}
+            {/* subtitles — the active cue from the narration, tracking the playhead */}
+            {showCaptions && caption && (
+              <div className="ed-caption"><span>{caption}</span></div>
+            )}
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
             {narrating && (
               <div className="ed-narrating">
@@ -629,6 +661,13 @@ export function VideoEditor() {
         </button>
       )}
 
+      <NarrationModal
+        open={scriptOpen}
+        onClose={() => setScriptOpen(false)}
+        script={project.narrationScript}
+        busy={narrating}
+        onRevoice={(text) => { setScriptOpen(false); genNarration(text) }}
+      />
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} project={project} videoUrl={videoUrl} onRender={startExportRender} rendering={rendering} progress={progress} stage={stage} />
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} project={project} />
     </div>
@@ -897,6 +936,52 @@ function RenderOverlay({ progress, stage }: { progress: number; stage: string })
         <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--text-4)' }}>Kinetic · headless Chrome → FFmpeg → MP4</div>
       </div>
     </div>
+  )
+}
+
+// Edit the narration script, then re-voice it (kept in sync with the visuals).
+function NarrationModal({ open, onClose, script, busy, onRevoice }: {
+  open: boolean
+  onClose: () => void
+  script?: import('../types').NarrationLine[]
+  busy: boolean
+  onRevoice: (text: string) => void
+}) {
+  const initial = (script || []).map((l) => l.text).join(' ')
+  const [text, setText] = useState(initial)
+  useEffect(() => { if (open) setText((script || []).map((l) => l.text).join(' ')) }, [open])
+  if (!open) return null
+  return (
+    <Modal open title="Narration script" onClose={onClose} width={560}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', lineHeight: 1.5, margin: 0 }}>
+          Edit the spoken script. Lines are timed to the scenes automatically, so your edit stays in sync with what's on screen.
+        </p>
+        {script && script.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 130, overflowY: 'auto', padding: '4px 2px' }}>
+            {script.map((l, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12.5, color: 'var(--text-2)' }}>
+                <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-2)', minWidth: 42 }}>{l.t.toFixed(1)}s</span>
+                <span>{l.text}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={5}
+          style={{ width: '100%', resize: 'vertical', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 12, padding: 12, color: 'var(--text)', fontSize: 13.5, lineHeight: 1.5, fontFamily: 'var(--font-display)' }}
+          placeholder="Write the narration the voice should read…"
+        />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="ed-cmdbtn" onClick={onClose}>Cancel</button>
+          <button className="ed-cmdbtn primary" disabled={busy || !text.trim()} onClick={() => onRevoice(text.trim())}>
+            <Icon name="sparkle" size={14} /> {busy ? 'Voicing…' : 'Re-voice'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 

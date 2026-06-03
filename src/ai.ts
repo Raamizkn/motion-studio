@@ -101,6 +101,16 @@ export async function narrationStatus(): Promise<{ ready: boolean; provider: str
   } catch { return { ready: false, provider: 'none' } }
 }
 
+export interface VoiceAvatar { id: string; name: string; gender: string; tagline: string; description: string; gradient?: string[]; previewUrl?: string | null }
+export interface VoiceCatalog { voices: VoiceAvatar[]; delivery: { key: string; label: string }[]; defaultVoiceId: string }
+
+export async function narrationVoices(): Promise<VoiceCatalog> {
+  try {
+    const r = await fetch('/api/ai/narration/voices')
+    return await r.json()
+  } catch { return { voices: [], delivery: [], defaultVoiceId: '' } }
+}
+
 /** Generate (script via Claude → speech via ElevenLabs) narration for a project. */
 export async function generateNarrationAI(input: {
   id: string
@@ -110,6 +120,8 @@ export async function generateNarrationAI(input: {
   prompt?: string
   durationSec: number
   voiceStyle?: string
+  /** chosen ElevenLabs voice avatar (voice_id) */
+  voiceId?: string
   /** override the spoken text instead of auto-writing it */
   script?: string
 }): Promise<NarrationResult> {
