@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store'
-import { TEMPLATES, TEMPLATE_CATEGORIES, FLOW_CONFIGS } from '../data'
+import { TEMPLATES, TEMPLATE_CATEGORIES, FLOW_CONFIGS, defaultConfig, PALETTES } from '../data'
 import type { FlowType } from '../data'
 import { TemplateCard, ProjectCard } from '../components/cards'
 import { ScenePreview } from '../components/ScenePreview'
@@ -52,8 +52,28 @@ export function Dashboard() {
   const [activeFlow, setActiveFlow] = useState<FlowType>('text-motion')
   const [assistMode, setAssistMode] = useState(true)
 
+  const createProject = useStore((s) => s.createProject)
   const filtered = cat === 'All' ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat)
-  const useTemplate = (t: StudioTemplate) => nav(`/studio/new?template=${t.id}`)
+
+  // All templates now compose through Claude (the new design master), then open
+  // straight into the generate → editor pipeline. No legacy scene-graph setup.
+  const useTemplate = (t: StudioTemplate) => {
+    const project = createProject(
+      t.name,
+      defaultConfig({
+        prompt: t.brief || `${t.name}. ${t.description}`,
+        aspect: t.config.aspect || t.aspect,
+        durationSec: t.config.durationSec || t.durationSec,
+        palette: t.config.palette || PALETTES.violet,
+        transition: t.config.transition || 'fade',
+        model: t.config.model || t.model,
+        themeId: t.themeId,
+        templateId: t.id,
+        flow: 'text-motion',
+      }),
+    )
+    nav(`/studio/projects/${project.id}/generate`)
+  }
 
   const activeConfig = FLOW_CONFIGS[activeFlow]
 

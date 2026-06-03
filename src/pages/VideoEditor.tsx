@@ -14,9 +14,10 @@ import {
   ExportModal,
   PublishModal,
 } from './editorParts'
-import { editorCommandAI } from '../ai'
+import { editorCommandAI, editCompositionAI } from '../ai'
 import type { EditCall } from '../ai'
 import { meshBg } from '../sceneModel'
+import { LiveCanvas } from '../components/LiveCanvas'
 
 export function VideoEditor() {
   const { id = '' } = useParams()
@@ -27,7 +28,11 @@ export function VideoEditor() {
   const editor = useStore((s) => s.editors[id])
   const setStatus = useStore((s) => s.setStatus)
   const store = useStore()
+  // One brain: if Claude composed this project, the editor previews/edits the
+  // real composition (seekable iframe) — never the legacy scene-graph.
+  const useLive = !!project?.composedHtml
 
+  const [reloadKey, setReloadKey] = useState(0)
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [rendering, setRendering] = useState(params.get('render') === '1')
   const [progress, setProgress] = useState(0)
@@ -99,7 +104,7 @@ export function VideoEditor() {
     let last = performance.now()
     const tick = (now: number) => {
       const v = videoRef.current
-      if (v && videoUrl) {
+      if (v && videoUrl && !useLive) {
         setTime(v.currentTime)
         if (v.ended || v.currentTime >= duration - 0.02) { setPlaying(false); return }
       } else {
@@ -111,7 +116,7 @@ export function VideoEditor() {
     }
     rafRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(rafRef.current!)
-  }, [playing, duration, videoUrl])
+  }, [playing, duration, videoUrl, useLive])
 
   // play / pause the real video element
   useEffect(() => {
@@ -173,11 +178,36 @@ export function VideoEditor() {
     try { await startRender(project) } catch (e) { setRenderErr(String(e)); setRendering(false) }
   }
 
-  // ── AI command handling (Gemini-powered, falls back locally) ──
+  // inline text edit on the live composition: swap the text in the HTML + persist.
+  // The live DOM already shows the change, so we DON'T bump reloadKey (no reload).
+  const onInlineEdit = (oldText: string, newText: string) => {
+    if (!project.composedHtml || !oldText) return
+    const next = project.composedHtml.split(oldText).join(newText)
+    store.setComposedHtml(id, next)
+  }
+
+  // ── AI command handling ──
   const runAI = async (prompt: string, context: string) => {
     const userMsg: ChatMessage = { id: Math.random().toString(36), role: 'user', text: prompt }
     const pending: ChatMessage = { id: 'pending', role: 'ai', text: '…thinking', toolCalls: [] }
     setChat((c) => [...c, userMsg, pending])
+
+    // Composed projects: Claude rewrites the whole composition, then we reload it.
+    if (useLive && project.composedHtml) {
+      const res = await editCompositionAI(project.composedHtml, prompt)
+      if (res.ok && res.html) {
+        store.setComposedHtml(id, res.html, res.summary)
+        setReloadKey((k) => k + 1)
+        setVideoUrl(null) // exported MP4 is now stale until re-render
+      }
+      const aiMsg: ChatMessage = {
+        id: Math.random().toString(36),
+        role: 'ai',
+        text: res.ok ? (res.summary || 'Updated your composition.') : `Couldn't apply that: ${res.error || 'try rephrasing'}`,
+      }
+      setChat((c) => [...c.filter((m) => m.id !== 'pending'), aiMsg])
+      return
+    }
 
     const result = await editorCommandAI(prompt, context, sel, editor.overlays, project.config.aspect)
     const applied = applyEditCalls(result.calls, { overlays: editor.overlays, scene: currentScene }, sel, project.config.aspect, {
@@ -363,20 +393,30 @@ export function VideoEditor() {
 
         <div className="ed-stage">
           <div className="ed-stage-card">
-            <Canvas
-              aspect={aspect}
-              videoUrl={videoUrl}
-              videoRef={videoRef}
-              scene={currentScene}
-              overlays={editor.overlays}
-              selectedId={editor.selectedId}
-              playing={playing}
-              onSelect={(oid: string | null) => store.selectElement(id, oid)}
-              onMove={moveItem}
-              onMoveEnd={() => store.snapshot(id)}
-              onText={textItem}
-            />
-            {sel && (
+            {useLive ? (
+              <LiveCanvas
+                html={project.composedHtml!}
+                aspect={aspect}
+                time={time}
+                reloadKey={reloadKey}
+                onEditText={onInlineEdit}
+              />
+            ) : (
+              <Canvas
+                aspect={aspect}
+                videoUrl={videoUrl}
+                videoRef={videoRef}
+                scene={currentScene}
+                overlays={editor.overlays}
+                selectedId={editor.selectedId}
+                playing={playing}
+                onSelect={(oid: string | null) => store.selectElement(id, oid)}
+                onMove={moveItem}
+                onMoveEnd={() => store.snapshot(id)}
+                onText={textItem}
+              />
+            )}
+            {!useLive && sel && (
               <div className="ed-toolbar-float">
                 <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />
               </div>

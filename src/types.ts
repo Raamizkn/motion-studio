@@ -153,6 +153,12 @@ export interface StudioTemplate {
   isNew?: boolean
   config: Partial<VideoProjectConfig>
   seed: SceneSeed
+  /** rich brief handed to Claude when this template is used (drives compose) */
+  brief?: string
+  /** built-in theme this template composes with */
+  themeId?: string
+  /** visual register — also drives the template card's preview style */
+  register?: 'editorial' | 'product' | 'bold' | 'minimal'
 }
 
 export type TemplateCategory =

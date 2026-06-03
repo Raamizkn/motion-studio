@@ -6,6 +6,22 @@ import { StatusBadge } from './shared'
 import { Icon } from './Icon'
 import { useStore } from '../store'
 
+// Bespoke editorial preview — matches the warm-paper / serif register the
+// YC-style template actually produces, so the card reads true to the output.
+function EditorialPreview() {
+  return (
+    <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', background: '#F5F2EC', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, padding: '14% 12%', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 9, letterSpacing: '0.22em', textTransform: 'uppercase', color: '#8A8575', marginBottom: 8 }}>Introducing</div>
+        <div style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 700, fontSize: 26, lineHeight: 1.04, color: '#141414', letterSpacing: '-0.01em' }}>
+          Built for the<br />people who <span style={{ color: '#3B5BDB' }}>make</span><br />things.
+        </div>
+        <div style={{ position: 'absolute', right: '8%', bottom: '8%', fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 700, fontSize: 40, color: 'rgba(20,20,20,0.07)' }}>2025</div>
+      </div>
+    </div>
+  )
+}
+
 export function TemplateCard({ tpl, onUse }: { tpl: StudioTemplate; onUse: (t: StudioTemplate) => void }) {
   const [hover, setHover] = useState(false)
   return (
@@ -23,7 +39,7 @@ export function TemplateCard({ tpl, onUse }: { tpl: StudioTemplate; onUse: (t: S
       }}
     >
       <div style={{ position: 'relative' }}>
-        <ScenePreview seed={tpl.seed} ratio={16 / 9} />
+        {tpl.register === 'editorial' ? <EditorialPreview /> : <ScenePreview seed={tpl.seed} ratio={16 / 9} />}
         {tpl.isNew && (
           <span className="badge new" style={{ position: 'absolute', top: 10, left: 10 }}>
             New

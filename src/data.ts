@@ -46,8 +46,33 @@ const seed = (kind: SceneKind, palette: string[], headline: string, lines: strin
   accent: palette[0],
 })
 
+// editorial register palette (ink · accent blue · accent orange · paper)
+const PALETTES_EDITORIAL = ['#141414', '#3B5BDB', '#E8590C', '#F5F2EC']
+
 // ── Seed templates ──────────────────────────────────────────────────────────
 export const TEMPLATES: StudioTemplate[] = [
+  {
+    id: 'yc-editorial',
+    name: 'Editorial Launch',
+    description: 'Prestige editorial film — warm paper, serif display, quiet confidence',
+    category: 'Brand',
+    tags: ['editorial', 'launch', 'serif', 'premium'],
+    durationSec: 20,
+    aspect: '16:9',
+    model: 'cinema',
+    isNew: true,
+    register: 'editorial',
+    themeId: 'editorial',
+    config: { aspect: '16:9', durationSec: 20, model: 'cinema', palette: [PALETTES_EDITORIAL[0], PALETTES_EDITORIAL[1], PALETTES_EDITORIAL[2]], transition: 'fade' },
+    seed: seed('hero', PALETTES_EDITORIAL, 'Built for the people who *make* things', ['Introducing', '2025']),
+    brief:
+      'A 20-second editorial launch film in the register of a prestige tech announcement (Y Combinator / Stripe Press). ' +
+      'Warm paper background (#F5F2EC), near-black serif display type (Source Serif 4) with a single decisive accent, hard-offset shadows, and subtle film grain. ' +
+      'Beat 1: a small uppercase kicker label fades in. Beat 2: a large serif statement builds line-by-line (the final word emphasised in the accent colour). ' +
+      'Beat 3: a centred editorial pull-quote with a thin rule. Beat 4: a restrained feature/data beat — a few numbers or short phrases that count up or stagger in. ' +
+      'Beat 5: a final brand lockup with the mark and a quiet motto, holding still on the last frame. ' +
+      'Confident, calm, premium. No glossy SaaS gradients, no neon glow — typography and timing carry it.',
+  },
   {
     id: 'saas-explainer',
     name: 'SaaS Explainer',
