@@ -1,0 +1,223 @@
+<!--HF-META {"summary":"Authored a 12-second editorial launch film for Lumen on warm paper with near-black serif display, accent flashes, hard-offset shadows and grain.","duration":12,"scenes":["Index","Headline","Manifesto","Lockup"]}-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=1080">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<style>
+  :root{
+    --ink:#141414;
+    --accent:#3B5BDB;
+    --hot:#E8590C;
+    --surface:#F5F2EC;
+    --muted:#8a8378;
+    --serif:"Source Serif 4",Georgia,serif;
+    --sans:"DM Sans",system-ui,sans-serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1920px;height:1080px;background:var(--surface);overflow:hidden}
+  #main{position:relative;width:1920px;height:1080px;background:var(--surface);overflow:hidden}
+  .scene{position:absolute;inset:0;overflow:hidden}
+  .grain{position:absolute;inset:0;pointer-events:none;opacity:.5;z-index:50;
+    background-image:radial-gradient(rgba(20,20,20,.16) .6px,transparent .7px);
+    background-size:3px 3px;mix-blend-mode:multiply}
+  .vig{position:absolute;inset:0;pointer-events:none;z-index:49;
+    background:radial-gradient(ellipse at center,transparent 55%,rgba(20,20,20,.06) 100%)}
+
+  .label{font-family:var(--sans);text-transform:uppercase;letter-spacing:.16em;
+    font-weight:700;font-size:20px;color:var(--muted)}
+  .rule{height:3px;background:var(--ink)}
+  .ghost{position:absolute;font-family:var(--serif);font-weight:700;
+    color:rgba(20,20,20,.045);letter-spacing:-.04em;white-space:nowrap;pointer-events:none}
+
+  /* SCENE 1 — INDEX */
+  #scene1{display:flex;align-items:center;justify-content:center}
+  #s1wrap{position:relative;width:1500px}
+  #s1wrap .topbar{display:flex;justify-content:space-between;align-items:flex-end;
+    border-bottom:3px solid var(--ink);padding-bottom:18px;margin-bottom:60px}
+  .idxrow{display:flex;align-items:baseline;gap:40px;font-family:var(--serif);
+    font-size:60px;font-weight:600;color:var(--ink);padding:22px 0;
+    border-bottom:1px solid rgba(20,20,20,.18)}
+  .idxrow .no{font-family:var(--sans);font-size:22px;font-weight:700;color:var(--muted);
+    width:70px;letter-spacing:.1em}
+  .idxrow .dot{flex:1;border-bottom:2px dotted rgba(20,20,20,.25);transform:translateY(-10px)}
+  .idxrow .pg{font-family:var(--sans);font-size:26px;font-weight:700;color:var(--accent)}
+
+  /* SCENE 2 — HEADLINE */
+  #scene2{display:flex;align-items:center}
+  #s2wrap{position:relative;margin-left:160px;max-width:1620px}
+  .kicker{display:flex;align-items:center;gap:24px;margin-bottom:40px}
+  .kicker .bar{width:90px;height:4px;background:var(--hot)}
+  .bighead{font-family:var(--serif);font-weight:700;color:var(--ink);
+    font-size:184px;line-height:.94;letter-spacing:-.045em}
+  .bighead .w{display:inline-block}
+  .bighead em{font-style:italic;color:var(--accent)}
+  .sub2{font-family:var(--sans);font-size:34px;color:var(--ink);
+    margin-top:50px;max-width:1000px;font-weight:400;line-height:1.4}
+
+  /* SCENE 3 — MANIFESTO */
+  #scene3{display:flex;align-items:center;justify-content:center}
+  #s3grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:50px;width:1560px}
+  .card{position:relative;background:var(--surface);border:3px solid var(--ink);
+    padding:54px 44px 60px;box-shadow:22px 22px 0 rgba(20,20,20,.14)}
+  .card .cno{font-family:var(--sans);font-weight:700;font-size:22px;letter-spacing:.1em;
+    color:var(--hot)}
+  .card h3{font-family:var(--serif);font-weight:700;font-size:62px;color:var(--ink);
+    margin:30px 0 24px;letter-spacing:-.03em;line-height:.98}
+  .card p{font-family:var(--sans);font-size:25px;color:var(--muted);line-height:1.45}
+  .card .crule{width:54px;height:4px;background:var(--accent);margin-top:30px}
+
+  /* SCENE 4 — LOCKUP */
+  #scene4{display:flex;align-items:center;justify-content:center}
+  #s4{position:relative;text-align:center}
+  .mark{font-family:var(--serif);font-weight:700;font-size:280px;color:var(--ink);
+    letter-spacing:-.05em;line-height:1}
+  .mark .dotL{color:var(--hot)}
+  #s4 .motto{font-family:var(--sans);text-transform:uppercase;letter-spacing:.34em;
+    font-weight:700;font-size:30px;color:var(--accent);margin-top:30px}
+  #s4panel{position:absolute;left:50%;bottom:-200px;transform:translateX(-50%);
+    width:880px;border-top:3px solid var(--ink);padding-top:26px;
+    display:flex;justify-content:space-between;font-family:var(--sans);
+    font-size:22px;font-weight:700;letter-spacing:.08em;color:var(--ink)}
+  #s4panel span.m{color:var(--muted)}
+
+  .flash{position:absolute;inset:0;background:var(--surface);opacity:0;z-index:60;pointer-events:none}
+  .blind{position:absolute;top:0;width:25%;height:100%;background:var(--ink);transform:scaleY(0);transform-origin:top;z-index:61}
+</style>
+</head>
+<body>
+<div id="main" data-composition-id="main" data-width="1920" data-height="1080" data-start="0" data-duration="12">
+
+  <!-- SCENE 1 -->
+  <section id="scene1" class="scene">
+    <div class="ghost" style="top:-60px;left:-80px;font-size:560px">L</div>
+    <div id="s1wrap">
+      <div class="topbar">
+        <div class="label" id="s1lab">Editorial Press — Vol.01</div>
+        <div class="label" id="s1date">MMXXV</div>
+      </div>
+      <div class="idxrow r1"><span class="no">01</span><span>Clarity, by design</span><span class="dot"></span><span class="pg">A</span></div>
+      <div class="idxrow r2"><span class="no">02</span><span>Light that reads</span><span class="dot"></span><span class="pg">B</span></div>
+      <div class="idxrow r3"><span class="no">03</span><span>Made to last</span><span class="dot"></span><span class="pg">C</span></div>
+    </div>
+  </section>
+
+  <!-- SCENE 2 -->
+  <section id="scene2" class="scene">
+    <div class="ghost" style="bottom:-120px;right:-40px;font-size:420px">2025</div>
+    <div id="s2wrap">
+      <div class="kicker"><span class="bar"></span><span class="label">Introducing</span></div>
+      <div class="bighead">
+        <span class="w">Lumen.</span><br>
+        <span class="w">Light, <em>refined.</em></span>
+      </div>
+      <div class="sub2">A press for ideas that deserve permanence — warm, considered, and built to be read for years.</div>
+    </div>
+  </section>
+
+  <!-- SCENE 3 -->
+  <section id="scene3" class="scene">
+    <div class="ghost" style="top:40px;left:50%;transform:translateX(-50%);font-size:300px">PRINCIPLES</div>
+    <div id="s3grid">
+      <div class="card c1"><div class="cno">— 01</div><h3>Calm</h3><p>Generous space, quiet hierarchy, nothing shouting for attention.</p><div class="crule"></div></div>
+      <div class="card c2"><div class="cno">— 02</div><h3>Honest</h3><p>Real structure, hard edges, ink that means exactly what it says.</p><div class="crule"></div></div>
+      <div class="card c3"><div class="cno">— 03</div><h3>Lasting</h3><p>Designed once, well — so it never needs to chase the moment.</p><div class="crule"></div></div>
+    </div>
+  </section>
+
+  <!-- SCENE 4 -->
+  <section id="scene4" class="scene">
+    <div class="ghost" style="top:-40px;left:-60px;font-size:520px">·</div>
+    <div id="s4">
+      <div class="mark">Lumen<span class="dotL">.</span></div>
+      <div class="motto">Light, refined</div>
+      <div id="s4panel"><span>EDITORIAL PRESS</span><span class="m">EST. MMXXV</span><span>LUMEN.STUDIO</span></div>
+    </div>
+  </section>
+
+  <div class="flash" id="flash"></div>
+  <div class="blind" id="b1" style="left:0%"></div>
+  <div class="blind" id="b2" style="left:25%"></div>
+  <div class="blind" id="b3" style="left:50%"></div>
+  <div class="blind" id="b4" style="left:75%"></div>
+  <div class="vig"></div>
+  <div class="grain"></div>
+</div>
+
+<script>
+(function(){
+  var tl = gsap.timeline({ paused:true });
+
+  gsap.set(["#scene2","#scene3","#scene4"], { opacity:0, visibility:"hidden" });
+
+  // ===== SCENE 1 (0 - 3.0) =====
+  tl.from("#s1lab", { y:-26, opacity:0, duration:.7, ease:"expo.out" }, .15);
+  tl.from("#s1date", { y:-26, opacity:0, duration:.7, ease:"expo.out" }, .25);
+  tl.from(".topbar", { scaleX:0, transformOrigin:"left", duration:.8, ease:"expo.out" }, .1);
+  tl.from(["#scene1 .r1","#scene1 .r2","#scene1 .r3"], { x:-50, opacity:0, duration:.7, ease:"expo.out", stagger:.14 }, .55);
+  tl.from("#scene1 .ghost", { opacity:0, scale:1.1, duration:1.2, ease:"sine.out" }, 0);
+  // micro drift
+  tl.to("#s1wrap", { y:-14, duration:2.2, ease:"sine.inOut" }, .8);
+
+  // transition: blinds wipe out
+  tl.to(["#b1","#b2","#b3","#b4"], { scaleY:1, duration:.34, ease:"power3.in", stagger:.05 }, 2.7);
+  tl.set("#scene2", { opacity:1, visibility:"visible" }, 3.0);
+  tl.set("#scene1", { opacity:0, visibility:"hidden" }, 3.05);
+  tl.set(["#b1","#b2","#b3","#b4"], { transformOrigin:"bottom" }, 3.0);
+  tl.to(["#b1","#b2","#b3","#b4"], { scaleY:0, duration:.34, ease:"power3.out", stagger:.05 }, 3.05);
+
+  // ===== SCENE 2 (3.0 - 6.4) =====
+  tl.from("#scene2 .kicker .bar", { scaleX:0, transformOrigin:"left", duration:.5, ease:"expo.out" }, 3.25);
+  tl.from("#scene2 .kicker .label", { x:-20, opacity:0, duration:.5, ease:"expo.out" }, 3.35);
+  tl.from(".bighead .w", { y:120, opacity:0, rotationX:40, transformOrigin:"bottom", duration:.85, ease:"expo.out", stagger:.12 }, 3.4);
+  tl.from(".sub2", { y:40, opacity:0, duration:.8, ease:"expo.out" }, 4.0);
+  tl.from("#scene2 .ghost", { opacity:0, x:60, duration:1.4, ease:"sine.out" }, 3.2);
+  tl.to("#s2wrap", { y:-18, duration:3.0, ease:"sine.inOut" }, 3.6);
+
+  // transition: whip + flash
+  tl.to("#s2wrap", { x:-120, filter:"blur(16px)", opacity:0, duration:.42, ease:"power3.in" }, 6.05);
+  tl.to("#flash", { opacity:.85, duration:.2, ease:"power2.in" }, 6.2);
+  tl.set("#scene3", { opacity:1, visibility:"visible" }, 6.4);
+  tl.set("#scene2", { opacity:0, visibility:"hidden" }, 6.45);
+  tl.to("#flash", { opacity:0, duration:.3, ease:"power2.out" }, 6.42);
+
+  // ===== SCENE 3 (6.4 - 9.4) =====
+  tl.from("#scene3 .ghost", { opacity:0, y:30, duration:1.2, ease:"sine.out" }, 6.4);
+  tl.from(["#scene3 .c1","#scene3 .c2","#scene3 .c3"], {
+    y:90, opacity:0, rotationY:24, transformPerspective:1200, transformOrigin:"left center",
+    duration:.9, ease:"expo.out", stagger:.16 }, 6.5);
+  tl.from(["#scene3 .c1 .crule","#scene3 .c2 .crule","#scene3 .c3 .crule"], {
+    scaleX:0, transformOrigin:"left", duration:.6, ease:"expo.out", stagger:.16 }, 7.2);
+  tl.to("#s3grid", { y:-12, duration:2.6, ease:"sine.inOut" }, 7.4);
+
+  // transition: blinds again
+  tl.set(["#b1","#b2","#b3","#b4"], { transformOrigin:"top" }, 9.05);
+  tl.to(["#b1","#b2","#b3","#b4"], { scaleY:1, duration:.32, ease:"power3.in", stagger:.04 }, 9.1);
+  tl.set("#scene4", { opacity:1, visibility:"visible" }, 9.4);
+  tl.set("#scene3", { opacity:0, visibility:"hidden" }, 9.45);
+  tl.set(["#b1","#b2","#b3","#b4"], { transformOrigin:"bottom" }, 9.4);
+  tl.to(["#b1","#b2","#b3","#b4"], { scaleY:0, duration:.32, ease:"power3.out", stagger:.04 }, 9.45);
+
+  // ===== SCENE 4 (9.4 - 12) =====
+  tl.from("#scene4 .ghost", { opacity:0, scale:1.15, duration:1.6, ease:"sine.out" }, 9.4);
+  tl.from(".mark", { y:80, opacity:0, scale:.94, duration:1.0, ease:"expo.out" }, 9.55);
+  tl.from(".mark .dotL", { scale:0, transformOrigin:"left bottom", duration:.6, ease:"back.out(3)" }, 10.1);
+  tl.from("#s4 .motto", { y:24, opacity:0, letterSpacing:".6em", duration:.8, ease:"expo.out" }, 10.0);
+  tl.fromTo("#s4panel", { y:200, opacity:0 }, { y:0, opacity:1, duration:.9, ease:"expo.out" }, 10.3);
+  // quiet dot pulse
+  tl.to(".mark .dotL", { color:"#3B5BDB", duration:.5, ease:"sine.inOut", yoyo:true, repeat:2 }, 11.0);
+  tl.to("#s4", { y:-10, duration:2.2, ease:"sine.inOut" }, 10.4);
+
+  // exact end
+  tl.set("#main", { "--x":"0" }, 12);
+
+  window.__timelines = window.__timelines || {};
+  window.__timelines["main"] = tl;
+})();
+</script>
+</body>
+</html>

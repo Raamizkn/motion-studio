@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { StudioTemplate, VideoProject } from '../types'
 import { ScenePreview, ASPECT_RATIO } from './ScenePreview'
@@ -18,6 +18,42 @@ function EditorialPreview() {
         </div>
         <div style={{ position: 'absolute', right: '8%', bottom: '8%', fontFamily: "'Source Serif 4', Georgia, serif", fontWeight: 700, fontSize: 40, color: 'rgba(20,20,20,0.07)' }}>2025</div>
       </div>
+    </div>
+  )
+}
+
+const THUMB_DIMS: Record<string, { w: number; h: number }> = {
+  '16:9': { w: 1920, h: 1080 }, '9:16': { w: 1080, h: 1920 }, '1:1': { w: 1080, h: 1080 }, '4:5': { w: 1080, h: 1350 },
+}
+// Static thumbnail rendered from the real composition (seeked to a hold frame),
+// so project previews match the actual output — never the old scene-graph seed.
+function CompThumb({ html, aspect }: { html: string; aspect: string }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const iref = useRef<HTMLIFrameElement | null>(null)
+  const [w, setW] = useState(0)
+  const dim = THUMB_DIMS[aspect] || THUMB_DIMS['16:9']
+  useEffect(() => {
+    const el = ref.current; if (!el) return
+    const m = () => setW(el.getBoundingClientRect().width)
+    m(); const ro = new ResizeObserver(m); ro.observe(el); return () => ro.disconnect()
+  }, [])
+  const onLoad = () => {
+    const win = iref.current?.contentWindow as any
+    let tries = 0
+    const grab = () => {
+      const tl = win?.__timelines?.main
+      if (tl) { try { tl.pause(); tl.seek(Math.max(0, tl.duration() * 0.66)) } catch { /* */ } }
+      else if (tries++ < 60) win?.setTimeout(grab, 40)
+    }
+    grab()
+  }
+  const scale = w ? w / dim.w : 0
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%', aspectRatio: `${dim.w} / ${dim.h}`, overflow: 'hidden', background: '#0a0a0c', pointerEvents: 'none' }}>
+      {scale > 0 && (
+        <iframe ref={iref} srcDoc={html} onLoad={onLoad} title="" scrolling="no" tabIndex={-1}
+          style={{ position: 'absolute', top: 0, left: 0, width: dim.w, height: dim.h, border: 'none', transformOrigin: 'top left', transform: `scale(${scale})` }} />
+      )}
     </div>
   )
 }
@@ -84,10 +120,11 @@ export function ProjectCard({ project }: { project: VideoProject }) {
   const [menu, setMenu] = useState(false)
   const { renameProject, deleteProject, duplicateProject } = useStore()
   const ratio = ASPECT_RATIO[project.config.aspect]
-  const dest =
-    project.status === 'complete' || project.status === 'rendering'
+  const dest = project.composedHtml
+    ? `/studio/projects/${project.id}/editor`
+    : project.status === 'complete' || project.status === 'rendering'
       ? `/studio/projects/${project.id}/editor`
-      : `/studio/projects/${project.id}/storyboard`
+      : `/studio/projects/${project.id}/generate`
 
   return (
     <div
@@ -109,7 +146,9 @@ export function ProjectCard({ project }: { project: VideoProject }) {
       onClick={() => nav(dest)}
     >
       <div style={{ position: 'relative', background: '#0a0a0c' }}>
-        {project.thumbnail ? (
+        {project.composedHtml ? (
+          <CompThumb html={project.composedHtml} aspect={project.config.aspect} />
+        ) : project.thumbnail ? (
           <ScenePreview seed={project.thumbnail} ratio={16 / 9} />
         ) : (
           <div style={{ aspectRatio: '16/9' }} className="shimmer" />

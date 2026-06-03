@@ -282,43 +282,51 @@ const TRACK_LABELS: { group: LayerGroup; label: string }[] = [
   { group: 'captions', label: 'CAPTIONS' },
 ]
 const GROUP_ICON: Record<LayerGroup, string> = { video: 'video', overlays: 'type', audio: 'music', captions: 'caption' }
-export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: string; time: number; duration: number; zoom: number; onZoom: (z: number) => void; onSeek: (t: number) => void }) {
+const fmtT = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+
+export function Timeline({ id, time, duration, zoom, onZoom, onSeek, playing, onPlay, onSeekStart }: { id: string; time: number; duration: number; zoom: number; onZoom: (z: number) => void; onSeek: (t: number) => void; playing?: boolean; onPlay?: () => void; onSeekStart?: () => void }) {
   const editor = useStore((s) => s.editors[id])
   const store = useStore()
   const rulerRef = useRef<HTMLDivElement | null>(null)
   const gutterRef = useRef<HTMLDivElement | null>(null)
-  const [h, setH] = useState(196)
+  const [h, setH] = useState(248)
   const dragRef = useRef<{ startY: number; startH: number } | null>(null)
   if (!editor) return null
 
   const W = duration * zoom
+  const ROW = 56
   const seekFromEvent = (clientX: number) => {
     const rect = rulerRef.current!.getBoundingClientRect()
-    onSeek(((clientX - rect.left) / zoom))
+    onSeek((clientX - rect.left) / zoom)
   }
-  const ticks = []
+  const ticks: number[] = []
   const step = zoom < 16 ? 5 : zoom < 40 ? 2 : 1
   for (let s = 0; s <= duration; s += step) ticks.push(s)
 
   return (
-    <div style={{ height: h, flex: 'none', borderTop: '1px solid var(--border)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+    <div style={{ height: h, flex: 'none', display: 'flex', flexDirection: 'column', position: 'relative', background: 'var(--bg-elev)', border: '1px solid var(--border)', borderRadius: 'var(--r-panel)', boxShadow: '0 2px 4px rgba(0,0,0,0.16)', overflow: 'hidden' }}>
       {/* resize handle */}
-      <div onPointerDown={(e) => { dragRef.current = { startY: e.clientY, startH: h }; (e.target as HTMLElement).setPointerCapture(e.pointerId) }} onPointerMove={(e) => { if (dragRef.current) setH(Math.max(120, Math.min(400, dragRef.current.startH - (e.clientY - dragRef.current.startY)))) }} onPointerUp={() => (dragRef.current = null)} style={{ height: 6, cursor: 'ns-resize', flex: 'none' }} />
+      <div onPointerDown={(e) => { dragRef.current = { startY: e.clientY, startH: h }; (e.target as HTMLElement).setPointerCapture(e.pointerId) }} onPointerMove={(e) => { if (dragRef.current) setH(Math.max(170, Math.min(520, dragRef.current.startH - (e.clientY - dragRef.current.startY)))) }} onPointerUp={() => (dragRef.current = null)} style={{ height: 8, cursor: 'ns-resize', flex: 'none' }} />
 
-      {/* controls */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px 6px' }}>
-        <Icon name="search" size={13} style={{ color: 'var(--text-3)' }} />
-        <input type="range" min={8} max={120} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} style={{ width: 120 }} aria-label="Zoom" />
-        <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)' }}>{time.toFixed(1)}s</span>
+      {/* transport + zoom header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 16px 10px', borderBottom: '1px solid var(--border)' }}>
+        <button onClick={onSeekStart} aria-label="To start" style={transportBtn}><Icon name="chevLeft" size={16} /></button>
+        <button onClick={onPlay} aria-label="Play/Pause" data-tour="play" style={{ ...transportBtn, width: 40, height: 40, background: 'var(--accent)', color: '#fff', border: 'none' }}><Icon name={playing ? 'pause' : 'play'} size={17} /></button>
+        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-2)', minWidth: 92 }}>{fmtT(time)} / {fmtT(duration)}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="search" size={13} style={{ color: 'var(--text-3)' }} />
+          <input type="range" min={8} max={140} value={zoom} onChange={(e) => onZoom(Number(e.target.value))} style={{ width: 130 }} aria-label="Zoom" />
+          <span style={{ fontSize: 11.5, color: 'var(--text-3)', fontFamily: 'var(--font-mono)', minWidth: 38 }}>{time.toFixed(1)}s</span>
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* gutter */}
-        <div ref={gutterRef} style={{ width: 92, flex: 'none', borderRight: '1px solid var(--border)', overflowY: 'hidden' }}>
-          <div style={{ height: 22 }} />
+        <div ref={gutterRef} style={{ width: 96, flex: 'none', borderRight: '1px solid var(--border)', overflowY: 'hidden' }}>
+          <div style={{ height: 26 }} />
           {TRACK_LABELS.map((t) => (
-            <div key={t.group} style={{ height: 42, display: 'flex', alignItems: 'center', gap: 6, padding: '0 10px', fontSize: 9.5, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', borderTop: '1px solid var(--border-faint)' }}>
-              <Icon name={GROUP_ICON[t.group]} size={12} /> {t.label}
+            <div key={t.group} style={{ height: ROW, display: 'flex', alignItems: 'center', gap: 7, padding: '0 12px', fontSize: 10, fontWeight: 600, letterSpacing: '.06em', color: 'var(--text-3)' }}>
+              <Icon name={GROUP_ICON[t.group]} size={13} /> {t.label}
             </div>
           ))}
         </div>
@@ -327,49 +335,52 @@ export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: str
         <div style={{ flex: 1, overflow: 'auto', position: 'relative' }} onScroll={(e) => { if (gutterRef.current) gutterRef.current.scrollTop = e.currentTarget.scrollTop }}>
           <div style={{ width: Math.max(W, 600), position: 'relative' }}>
             {/* ruler */}
-            <div ref={rulerRef} onPointerDown={(e) => { seekFromEvent(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }} onPointerMove={(e) => { if (e.buttons === 1) seekFromEvent(e.clientX) }} style={{ height: 22, position: 'relative', cursor: 'text', borderBottom: '1px solid var(--border-faint)' }}>
+            <div ref={rulerRef} onPointerDown={(e) => { seekFromEvent(e.clientX); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId) }} onPointerMove={(e) => { if (e.buttons === 1) seekFromEvent(e.clientX) }} style={{ height: 26, position: 'relative', cursor: 'text' }}>
               {ticks.map((s) => (
-                <div key={s} style={{ position: 'absolute', left: s * zoom, top: 0, height: '100%', fontSize: 9.5, color: 'var(--text-4)', paddingLeft: 3, borderLeft: '1px solid var(--border-faint)' }}>{s}s</div>
+                <div key={s} style={{ position: 'absolute', left: s * zoom, top: 6, fontSize: 10.5, color: 'var(--text-4)', fontFamily: 'var(--font-mono)' }}>{s}s</div>
               ))}
             </div>
 
             {/* tracks */}
             {TRACK_LABELS.map((t) => (
-              <div key={t.group} style={{ height: 42, position: 'relative', borderTop: '1px solid var(--border-faint)' }}>
-                {/* video scene clips — neutral with a left accent stripe */}
+              <div key={t.group} style={{ height: ROW, position: 'relative' }}>
+                {/* video scene clips — rounded blocks with accent stripe + duration badge */}
                 {editor.clips.filter((c) => c.group === t.group).map((c) => (
-                  <div key={c.id} onClick={() => onSeek(c.start + 0.05)} title={c.name} className="tl-clip" style={{ position: 'absolute', left: c.start * zoom + 2, width: Math.max(10, c.duration * zoom - 4), top: 5, height: 32 }}>
-                    <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, borderRadius: '6px 0 0 6px', background: 'var(--accent)' }} />
-                    <span style={{ paddingLeft: 11, fontSize: 10.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                  <div key={c.id} onClick={() => onSeek(c.start + 0.05)} title={c.name}
+                    style={{ position: 'absolute', left: c.start * zoom + 3, width: Math.max(40, c.duration * zoom - 6), top: 6, height: ROW - 14, display: 'flex', alignItems: 'center', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }}>
+                    <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: 'var(--accent)' }} />
+                    <span style={{ paddingLeft: 13, fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                    <span style={{ marginLeft: 'auto', marginRight: 8, fontSize: 10.5, color: 'var(--text-3)', background: 'rgba(0,0,0,.35)', padding: '2px 6px', borderRadius: 8, fontFamily: 'var(--font-mono)' }}>{c.duration.toFixed(0)}s</span>
                   </div>
                 ))}
                 {/* overlay spans */}
                 {t.group === 'overlays' && editor.overlays.map((o, i) => {
                   const selected = editor.selectedId === o.id
                   return (
-                    <div key={o.id} onClick={() => store.selectElement(id, o.id)} className="tl-clip" style={{ position: 'absolute', left: 2 + i * 6, width: Math.max(48, duration * zoom * (i === 0 ? 0.96 : 0.42) - 4), top: 5, height: 32, background: selected ? 'var(--accent-soft)' : undefined, borderColor: selected ? 'var(--accent)' : undefined }}>
-                      <span style={{ paddingLeft: 9, fontSize: 10.5, color: selected ? '#fff' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.kind === 'text' ? o.text : o.kind}</span>
+                    <div key={o.id} onClick={() => store.selectElement(id, o.id)}
+                      style={{ position: 'absolute', left: 3 + i * 6, width: Math.max(60, duration * zoom * (i === 0 ? 0.96 : 0.42) - 6), top: 6, height: ROW - 14, display: 'flex', alignItems: 'center', background: selected ? 'var(--accent-soft)' : 'var(--surface)', border: `1px solid ${selected ? 'var(--accent)' : 'var(--border-strong)'}`, borderRadius: 12, cursor: 'pointer' }}>
+                      <span style={{ paddingLeft: 11, fontSize: 12, color: selected ? 'var(--accent-2)' : 'var(--text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.kind === 'text' ? o.text : o.kind}</span>
                     </div>
                   )
                 })}
-                {/* audio waveform — neutral bars */}
+                {/* audio waveform */}
                 {t.group === 'audio' && (
-                  <div className="tl-clip" style={{ position: 'absolute', left: 2, width: duration * zoom - 4, top: 5, height: 32, alignItems: 'center', gap: 2, padding: '0 9px', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', left: 3, width: duration * zoom - 6, top: 6, height: ROW - 14, display: 'flex', alignItems: 'center', gap: 2, padding: '0 11px', overflow: 'hidden', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 12 }}>
                     {Array.from({ length: Math.floor((duration * zoom) / 5) }).map((_, i) => (
-                      <span key={i} style={{ width: 2, height: `${30 + 55 * Math.abs(Math.sin(i * 0.7))}%`, background: 'var(--text-4)', borderRadius: 2, flex: 'none' }} />
+                      <span key={i} style={{ width: 2.5, height: `${24 + 52 * Math.abs(Math.sin(i * 0.7))}%`, background: 'var(--text-4)', borderRadius: 2, flex: 'none' }} />
                     ))}
                   </div>
                 )}
                 {/* captions */}
                 {t.group === 'captions' && Array.from({ length: Math.max(1, Math.floor(duration / 3)) }).map((_, i) => (
-                  <div key={i} className="tl-clip" style={{ position: 'absolute', left: i * 3 * zoom + 2, width: 3 * zoom - 6, top: 9, height: 24, justifyContent: 'center', fontSize: 9, color: 'var(--text-3)' }}>sub{i + 1}</div>
+                  <div key={i} style={{ position: 'absolute', left: i * 3 * zoom + 3, width: 3 * zoom - 8, top: 10, height: ROW - 22, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10.5, color: 'var(--text-3)', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 10 }}>sub{i + 1}</div>
                 ))}
               </div>
             ))}
 
             {/* playhead */}
-            <div style={{ position: 'absolute', left: time * zoom, top: 0, bottom: 0, width: 2, background: 'var(--accent)', pointerEvents: 'none', boxShadow: '0 0 10px var(--accent-glow)' }}>
-              <div style={{ position: 'absolute', top: -1, left: -5, width: 12, height: 12, borderRadius: '0 0 3px 3px', background: 'var(--accent)' }} />
+            <div style={{ position: 'absolute', left: time * zoom, top: 0, bottom: 0, width: 2, background: '#fff', pointerEvents: 'none' }}>
+              <div style={{ position: 'absolute', top: 0, left: -5, width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: '8px solid #fff' }} />
             </div>
           </div>
         </div>
@@ -377,6 +388,8 @@ export function Timeline({ id, time, duration, zoom, onZoom, onSeek }: { id: str
     </div>
   )
 }
+
+const transportBtn: React.CSSProperties = { width: 32, height: 32, borderRadius: 999, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center', flex: 'none' }
 
 // ── First-run tour ──────────────────────────────────────────────────────────
 const TOUR = [
@@ -410,7 +423,7 @@ export function FirstRunTour({ onDone }: { onDone: () => void }) {
 }
 
 // ── Export modal ────────────────────────────────────────────────────────────
-export function ExportModal({ open, onClose, project, videoUrl, onRender }: { open: boolean; onClose: () => void; project: VideoProject; videoUrl: string | null; onRender: () => void }) {
+export function ExportModal({ open, onClose, project, videoUrl, onRender, rendering, progress = 0, stage }: { open: boolean; onClose: () => void; project: VideoProject; videoUrl: string | null; onRender: () => void; rendering?: boolean; progress?: number; stage?: string }) {
   const [format, setFormat] = useState('MP4')
   const [res, setRes] = useState('1080p')
   const [subs, setSubs] = useState(true)
@@ -419,13 +432,19 @@ export function ExportModal({ open, onClose, project, videoUrl, onRender }: { op
       footer={
         videoUrl ? (
           <>
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn ghost" onClick={onClose}>Close</button>
             <a className="btn primary" href={videoUrl} download={`${project.name}.mp4`}><Icon name="download" size={15} /> Download {format}</a>
+          </>
+        ) : rendering ? (
+          <>
+            <button className="btn ghost" onClick={onClose}>Hide</button>
+            <button className="btn primary" disabled><span className="spinner" style={{ width: 14, height: 14, borderTopColor: '#fff' }} /> Rendering… {Math.round(progress)}%</button>
           </>
         ) : (
           <>
             <button className="btn ghost" onClick={onClose}>Cancel</button>
-            <button className="btn primary" onClick={() => { onRender(); onClose() }}><Icon name="sparkle" size={15} /> Render & export</button>
+            {/* render WITHOUT closing — the modal shows progress then offers download */}
+            <button className="btn primary" onClick={() => onRender()}><Icon name="sparkle" size={15} /> Render &amp; export</button>
           </>
         )
       }
@@ -444,8 +463,15 @@ export function ExportModal({ open, onClose, project, videoUrl, onRender }: { op
         </Field>
         {videoUrl ? (
           <video src={videoUrl} controls style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
+        ) : rendering ? (
+          <div style={{ marginTop: 2 }}>
+            <div style={{ height: 6, borderRadius: 99, background: 'var(--surface-2)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${Math.max(6, progress)}%`, background: 'var(--accent-grad)', transition: 'width .4s' }} />
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginTop: 8 }}>{stage || 'Rendering frames in headless Chrome'}… keep this open — Download appears when it’s ready.</p>
+          </div>
         ) : (
-          <p style={{ fontSize: 12.5, color: 'var(--text-3)' }}>No render yet — this will render your composition to a real {format} file via Kinetic.</p>
+          <p style={{ fontSize: 12.5, color: 'var(--text-3)' }}>No render yet — this will render your composition to a real {format} file via Kinetic. The window stays open and Download appears when it’s done.</p>
         )}
       </div>
     </Modal>

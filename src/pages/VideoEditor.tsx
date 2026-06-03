@@ -33,6 +33,11 @@ export function VideoEditor() {
   const useLive = !!project?.composedHtml
 
   const [reloadKey, setReloadKey] = useState(0)
+  const [selectedEid, setSelectedEid] = useState<string | null>(null)
+  const [compEls, setCompEls] = useState<import('../components/LiveCanvas').CompEl[]>([])
+  // composition undo/redo history (separate from the legacy scene-graph history)
+  const compHist = useRef<{ past: string[]; future: string[] }>({ past: [], future: [] })
+  const [compNonce, setCompNonce] = useState(0) // bump to re-render undo/redo enabled state
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [rendering, setRendering] = useState(params.get('render') === '1')
   const [progress, setProgress] = useState(0)
@@ -138,9 +143,10 @@ export function VideoEditor() {
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.tagName === 'INPUT' || (e.target as HTMLElement)?.isContentEditable) return
+      const t = e.target as HTMLElement
+      if (t?.tagName === 'INPUT' || t?.tagName === 'TEXTAREA' || t?.isContentEditable) return
       if (e.code === 'Space') { e.preventDefault(); setPlaying((p) => !p) }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); e.shiftKey ? store.redo(id) : store.undo(id) }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') { e.preventDefault(); if (useLive) { e.shiftKey ? compRedo() : compUndo() } else { e.shiftKey ? store.redo(id) : store.undo(id) } }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -178,12 +184,32 @@ export function VideoEditor() {
     try { await startRender(project) } catch (e) { setRenderErr(String(e)); setRendering(false) }
   }
 
-  // inline text edit on the live composition: swap the text in the HTML + persist.
-  // The live DOM already shows the change, so we DON'T bump reloadKey (no reload).
-  const onInlineEdit = (oldText: string, newText: string) => {
-    if (!project.composedHtml || !oldText) return
-    const next = project.composedHtml.split(oldText).join(newText)
+  // record the current composition into undo history before replacing it
+  const pushCompHistory = () => {
+    const cur = useStore.getState().projects.find((p) => p.id === id)?.composedHtml
+    if (cur != null) { compHist.current.past.push(cur); if (compHist.current.past.length > 60) compHist.current.past.shift(); compHist.current.future = []; setCompNonce((n) => n + 1) }
+  }
+  // direct edits on the live composition persist the settled DOM; we don't bump
+  // reloadKey (the live DOM already reflects the change).
+  const onPersistComposition = (nextHtml: string) => {
+    pushCompHistory()
+    store.setComposedHtml(id, nextHtml)
+  }
+  const compUndo = () => {
+    const cur = useStore.getState().projects.find((p) => p.id === id)?.composedHtml
+    const prev = compHist.current.past.pop()
+    if (prev == null || cur == null) return
+    compHist.current.future.push(cur)
+    store.setComposedHtml(id, prev)
+    setSelectedEid(null); setReloadKey((k) => k + 1); setCompNonce((n) => n + 1)
+  }
+  const compRedo = () => {
+    const cur = useStore.getState().projects.find((p) => p.id === id)?.composedHtml
+    const next = compHist.current.future.pop()
+    if (next == null || cur == null) return
+    compHist.current.past.push(cur)
     store.setComposedHtml(id, next)
+    setSelectedEid(null); setReloadKey((k) => k + 1); setCompNonce((n) => n + 1)
   }
 
   // ── AI command handling ──
@@ -196,6 +222,7 @@ export function VideoEditor() {
     if (useLive && project.composedHtml) {
       const res = await editCompositionAI(project.composedHtml, prompt)
       if (res.ok && res.html) {
+        pushCompHistory()
         store.setComposedHtml(id, res.html, res.summary)
         setReloadKey((k) => k + 1)
         setVideoUrl(null) // exported MP4 is now stale until re-render
@@ -378,12 +405,8 @@ export function VideoEditor() {
           <button className="ed-cmdbtn icon" onClick={() => nav('/studio')} aria-label="Back"><Icon name="arrowLeft" size={16} /></button>
           <input className="ed-name" defaultValue={project.name} onBlur={(e) => store.renameProject(id, e.target.value)} />
           <div className="ed-sep" />
-          <button className="ed-cmdbtn icon" disabled={!store.canUndo(id)} onClick={() => store.undo(id)} aria-label="Undo"><Icon name="undo" size={15} /></button>
-          <button className="ed-cmdbtn icon" disabled={!store.canRedo(id)} onClick={() => store.redo(id)} aria-label="Redo"><Icon name="redo" size={15} /></button>
-          <div className="ed-sep" />
-          <button className="ed-cmdbtn icon" onClick={() => { setTime(0); setPlaying(false) }} aria-label="To start"><Icon name="chevLeft" size={15} /></button>
-          <button className="ed-cmdbtn primary icon" onClick={() => setPlaying((p) => !p)} aria-label="Play/Pause" data-tour="play"><Icon name={playing ? 'pause' : 'play'} size={15} /></button>
-          <span className="ed-time">{fmt(time)} / {fmt(duration)}</span>
+          <button className="ed-cmdbtn icon" disabled={useLive ? compHist.current.past.length === 0 : !store.canUndo(id)} onClick={() => (useLive ? compUndo() : store.undo(id))} aria-label="Undo"><Icon name="undo" size={15} /></button>
+          <button className="ed-cmdbtn icon" disabled={useLive ? compHist.current.future.length === 0 : !store.canRedo(id)} onClick={() => (useLive ? compRedo() : store.redo(id))} aria-label="Redo"><Icon name="redo" size={15} /></button>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }} data-tour="export">
             <span className="ed-cmdbtn"><Icon name="image" size={14} /> {aspect}</span>
             <button className="ed-cmdbtn" onClick={() => setExportOpen(true)}><Icon name="download" size={14} /> Export</button>
@@ -399,7 +422,10 @@ export function VideoEditor() {
                 aspect={aspect}
                 time={time}
                 reloadKey={reloadKey}
-                onEditText={onInlineEdit}
+                selectedEid={selectedEid}
+                onSelect={setSelectedEid}
+                onElements={setCompEls}
+                onPersist={onPersistComposition}
               />
             ) : (
               <Canvas
@@ -440,6 +466,9 @@ export function VideoEditor() {
             zoom={zoom}
             onZoom={setZoom}
             onSeek={(t) => { setTime(Math.max(0, Math.min(duration, t))); setPlaying(false) }}
+            playing={playing}
+            onPlay={() => setPlaying((p) => !p)}
+            onSeekStart={() => { setTime(0); setPlaying(false) }}
           />
         </div>
       </div>
@@ -448,7 +477,9 @@ export function VideoEditor() {
       {rightOpen ? (
         <div className="ed-drawer-col">
           <div className="ed-drawer">
-            <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />
+            {useLive
+              ? <CompositionLayers els={compEls} selectedEid={selectedEid} onSelect={setSelectedEid} onCollapse={() => setRightOpen(false)} />
+              : <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />}
           </div>
         </div>
       ) : (
@@ -457,7 +488,7 @@ export function VideoEditor() {
         </button>
       )}
 
-      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} project={project} videoUrl={videoUrl} onRender={startExportRender} />
+      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} project={project} videoUrl={videoUrl} onRender={startExportRender} rendering={rendering} progress={progress} stage={stage} />
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} project={project} />
     </div>
   )
@@ -482,6 +513,38 @@ function PromptInput({ onSend }: { onSend: (v: string) => void }) {
       rows={1}
       style={{ resize: 'none' }}
     />
+  )
+}
+
+// Layers panel derived from the live composition (one model with the canvas)
+function CompositionLayers({ els, selectedEid, onSelect, onCollapse }: { els: import('../components/LiveCanvas').CompEl[]; selectedEid: string | null; onSelect: (eid: string | null) => void; onCollapse: () => void }) {
+  const texts = els.filter((e) => e.kind === 'text')
+  const media = els.filter((e) => e.kind === 'image')
+  const Row = ({ e }: { e: import('../components/LiveCanvas').CompEl }) => (
+    <button
+      onClick={() => onSelect(selectedEid === e.eid ? null : e.eid)}
+      style={{ display: 'flex', alignItems: 'center', gap: 9, width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', background: selectedEid === e.eid ? 'var(--accent-soft)' : 'transparent', color: selectedEid === e.eid ? 'var(--accent-2)' : 'var(--text-2)', marginBottom: 2 }}
+      onMouseEnter={(ev) => { if (selectedEid !== e.eid) ev.currentTarget.style.background = 'var(--surface)' }}
+      onMouseLeave={(ev) => { if (selectedEid !== e.eid) ev.currentTarget.style.background = 'transparent' }}
+    >
+      <Icon name={e.kind === 'image' ? 'image' : 'type'} size={15} style={{ flex: 'none' }} />
+      <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.label || (e.kind === 'image' ? 'Image' : 'Text')}</span>
+    </button>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 15, color: 'var(--text)' }}>
+        Layers
+        <button onClick={onCollapse} aria-label="Collapse" style={{ width: 28, height: 28, borderRadius: 999, border: 'none', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="chevRight" size={16} /></button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+        {els.length === 0 && <div style={{ color: 'var(--text-3)', fontSize: 12.5, textAlign: 'center', marginTop: 24, lineHeight: 1.5 }}>Reading the composition…<br />text & media elements appear here.</div>}
+        {texts.length > 0 && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', color: 'var(--text-4)', margin: '4px 6px 8px' }}>TEXT</div>}
+        {texts.map((e) => <Row key={e.eid} e={e} />)}
+        {media.length > 0 && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', color: 'var(--text-4)', margin: '14px 6px 8px' }}>MEDIA</div>}
+        {media.map((e) => <Row key={e.eid} e={e} />)}
+      </div>
+    </div>
   )
 }
 
