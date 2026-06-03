@@ -2,3 +2,10 @@ node_modules
 dist
 .renders
 *.local
+.env
+.env.*
+!.env.example
+# compiled config artifacts (shadow the .ts source during dev)
+vite.config.js
+vite.config.d.ts
+*.tsbuildinfo

@@ -1,115 +1,202 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { useState } from 'react'
 import { Icon } from './Icon'
 
-const TOOLS = [
-  { icon: 'image', label: 'Image', to: '/image' },
-  { icon: 'video', label: 'Video', to: '/video' },
-  { icon: 'audio', label: 'Audio', to: '/audio' },
-  { icon: 'edit', label: 'Edit', to: '/edit' },
-  { icon: 'upscale', label: 'Upscale', to: '/upscale' },
-  { icon: 'film', label: 'Film studio', to: '/film' },
-  { icon: 'ad', label: 'Ad studio', to: '/ad' },
+const NAV_ITEMS = [
+  { icon: 'home',      label: 'Home',    to: '/home' },
+  { icon: 'apps',      label: 'Apps',    to: '/apps' },
 ]
 
-export function Sidebar() {
-  const loc = useLocation()
-  const [seenNew, setSeen] = useState(() => localStorage.getItem('ms-seen-new') === '1')
+const TOOL_ITEMS = [
+  { icon: 'image',     label: 'Image',   to: '/image' },
+  { icon: 'video',     label: 'Video',   to: '/video' },
+  { icon: 'motion',    label: 'Flows',   to: '/studio' },   // Motion Studio = Flows
+  { icon: 'edit',      label: 'Edit',    to: '/edit' },
+  { icon: 'audio',     label: 'Lipsync', to: '/lipsync' },
+  { icon: 'upscale',   label: 'Upscale', to: '/upscale' },
+  { icon: 'film',      label: 'Editor',  to: '/film' },
+]
 
-  const studioActive = loc.pathname.startsWith('/studio')
+const BOTTOM_ITEMS = [
+  { icon: 'assets',    label: 'Tools',   to: '/tools' },
+  { icon: 'community', label: 'Explore', to: '/community' },
+]
 
-  const Item = ({ icon, label, to, disabled }: { icon: string; label: string; to: string; disabled?: boolean }) => (
+function NavItem({
+  icon,
+  label,
+  to,
+  disabled,
+}: {
+  icon: string
+  label: string
+  to: string
+  disabled?: boolean
+}) {
+  return (
     <NavLink
       to={to}
       onClick={(e) => disabled && e.preventDefault()}
-      className="nav-item"
-      style={({ isActive }) => ({
-        opacity: disabled ? 0.55 : 1,
-        background: isActive && !disabled ? 'var(--surface-2)' : 'transparent',
-        color: isActive && !disabled ? 'var(--text)' : 'var(--text-2)',
-      })}
+      className={({ isActive }) => `vm-nav-item${isActive && !disabled ? ' active' : ''}`}
+      style={{ opacity: disabled ? 0.45 : 1 }}
+      title={label}
     >
-      <Icon name={icon} size={18} />
-      <span>{label}</span>
+      <span className="vm-nav-icon">
+        <Icon name={icon} size={20} />
+      </span>
+      <span className="vm-nav-label">{label}</span>
     </NavLink>
   )
+}
 
+export function Sidebar() {
   return (
-    <aside className="sidebar">
+    <aside className="vm-sidebar">
       <style>{`
-        .sidebar{width:var(--sidebar-w);flex:none;height:100%;border-right:1px solid var(--border);
-          background:var(--bg-elev);display:flex;flex-direction:column;padding:14px 12px;gap:4px;overflow-y:auto}
-        .nav-item{display:flex;align-items:center;gap:11px;height:36px;padding:0 11px;border-radius:9px;
-          font-size:13.5px;font-weight:500;transition:all .14s;color:var(--text-2)}
-        .nav-item:hover{background:var(--surface);color:var(--text)}
-        .nav-label{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
-          color:var(--text-4);padding:14px 11px 5px}
-        .brand{display:flex;align-items:center;gap:9px;padding:4px 8px 12px;font-weight:700;font-size:15px}
-        .ws{display:flex;align-items:center;gap:9px;height:42px;padding:0 10px;border-radius:11px;
-          background:var(--surface);border:1px solid var(--border);margin-bottom:6px;cursor:pointer}
+        .vm-sidebar {
+          width: 72px;
+          flex: none;
+          height: 100%;
+          background: var(--bg-elev);
+          border-right: 1px solid var(--border);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          padding: 12px 4px 16px;
+          gap: 8px;
+          overflow: hidden;
+          z-index: 10;
+        }
+
+        /* Logo */
+        .vm-logo {
+          width: 48px;
+          height: 48px;
+          border-radius: 10px;
+          display: grid;
+          place-items: center;
+          flex: none;
+          margin-bottom: 4px;
+          cursor: pointer;
+        }
+        .vm-logo-inner {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          background: var(--accent-grad);
+          display: grid;
+          place-items: center;
+          box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        /* Separator */
+        .vm-sep {
+          width: 24px;
+          height: 1px;
+          background: var(--border-strong);
+          border-radius: 999px;
+          flex: none;
+        }
+
+        /* Nav item */
+        .vm-nav-item {
+          width: 64px;
+          min-height: 58px;
+          border-radius: 12px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-end;
+          padding: 0 8px 4px;
+          gap: 2px;
+          cursor: pointer;
+          text-decoration: none;
+          transition: background 0.14s;
+          flex: none;
+          align-self: stretch;
+        }
+        .vm-nav-item:hover .vm-nav-icon {
+          background: var(--surface-2);
+        }
+        .vm-nav-item.active .vm-nav-icon {
+          background: var(--surface-3);
+          border: 1px solid var(--border-strong);
+          box-shadow: 0 0 4px rgba(138,63,252,0.12);
+        }
+
+        /* Icon box */
+        .vm-nav-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          color: var(--text-2);
+          transition: background 0.14s, border-color 0.14s;
+          flex: none;
+          border: 1px solid transparent;
+        }
+        .vm-nav-item.active .vm-nav-icon {
+          color: var(--text);
+        }
+
+        /* Label */
+        .vm-nav-label {
+          font-family: var(--font-display);
+          font-size: 11px;
+          font-weight: 400;
+          line-height: 16px;
+          letter-spacing: 0.03em;
+          color: var(--text-3);
+          text-align: center;
+          width: 48px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .vm-nav-item.active .vm-nav-label {
+          color: var(--text-2);
+        }
+
+        /* Spacer */
+        .vm-spacer { flex: 1; }
+
+        /* Bottom fade */
+        .vm-bottom-fade {
+          position: absolute;
+          bottom: 0;
+          left: 4px;
+          width: 64px;
+          height: 64px;
+          background: linear-gradient(0deg, var(--bg-elev) 34%, transparent 100%);
+          pointer-events: none;
+        }
       `}</style>
 
-      <div className="brand">
-        <div
-          style={{
-            width: 26,
-            height: 26,
-            borderRadius: 8,
-            background: 'var(--accent-grad)',
-            display: 'grid',
-            placeItems: 'center',
-            boxShadow: '0 0 16px var(--accent-glow)',
-          }}
-        >
-          <Icon name="sparkle" size={15} style={{ color: '#fff' }} />
+      {/* Logo */}
+      <div className="vm-logo">
+        <div className="vm-logo-inner">
+          <Icon name="sparkle" size={16} style={{ color: '#fff' }} />
         </div>
-        ImagineArt
       </div>
 
-      <div className="ws">
-        <div style={{ width: 22, height: 22, borderRadius: 6, background: 'linear-gradient(135deg,#c44bff,#7c5cff)' }} />
-        <span style={{ fontSize: 13, fontWeight: 600 }}>ImagineCreative</span>
-        <Icon name="chevDown" size={14} style={{ marginLeft: 'auto', color: 'var(--text-3)' }} />
-      </div>
-
-      <Item icon="home" label="Home" to="/home" />
-      <Item icon="assets" label="Assets" to="/assets" />
-      <Item icon="search" label="Search" to="/search" />
-
-      <div className="nav-label">Tools</div>
-      {TOOLS.map((t) => (
-        <Item key={t.label} {...t} disabled />
+      {NAV_ITEMS.map((item) => (
+        <NavItem key={item.label} {...item} disabled={item.to !== '/studio' && item.to !== '/home'} />
       ))}
 
-      {/* ── Motion Studio — the new feature ── */}
-      <NavLink
-        to="/studio"
-        onClick={() => {
-          localStorage.setItem('ms-seen-new', '1')
-          setSeen(true)
-        }}
-        className="nav-item"
-        style={{
-          background: studioActive ? 'var(--accent-soft)' : 'transparent',
-          color: studioActive ? '#fff' : 'var(--text)',
-          border: studioActive ? '1px solid rgba(124,92,255,.35)' : '1px solid transparent',
-          fontWeight: 600,
-        }}
-      >
-        <Icon name="motion" size={18} style={{ color: 'var(--accent-2)' }} />
-        <span>Motion Studio</span>
-        {!seenNew && <span className="badge new" style={{ marginLeft: 'auto' }}>New</span>}
-      </NavLink>
+      <div className="vm-sep" />
 
-      <div className="nav-label">Apps</div>
-      <Item icon="apps" label="All Tools" to="/apps" disabled />
-      <Item icon="community" label="Community" to="/community" disabled />
+      {TOOL_ITEMS.map((item) => (
+        <NavItem key={item.label} {...item} disabled={item.to !== '/studio'} />
+      ))}
 
-      <div style={{ marginTop: 'auto', display: 'flex', gap: 6, padding: '12px 6px 4px', color: 'var(--text-3)' }}>
-        <Icon name="settings" size={17} />
-        <Icon name="bell" size={17} />
-        <Icon name="assets" size={17} />
-      </div>
+      <div className="vm-sep" />
+
+      {BOTTOM_ITEMS.map((item) => (
+        <NavItem key={item.label} {...item} disabled />
+      ))}
+
+      <div className="vm-spacer" />
+      <div className="vm-bottom-fade" />
     </aside>
   )
 }

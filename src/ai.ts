@@ -9,13 +9,63 @@ import { SCENE_LABELS } from './scene'
  * breaks if the API is down or the key is missing.
  */
 
-export interface AIStatus { provider: 'gemini' | 'fallback'; model: string; ready: boolean }
+export interface AIStatus { provider: 'claude' | 'gemini' | 'fallback'; model?: string; genModel?: string; editModel?: string; ready: boolean }
 
 export async function aiStatus(): Promise<AIStatus> {
   try {
     const r = await fetch('/api/ai/status')
     return await r.json()
-  } catch { return { provider: 'fallback', model: '', ready: false } }
+  } catch { return { provider: 'fallback', ready: false } }
+}
+
+// ── Claude brain: compose & edit full Hyperframes compositions ──────────────
+export interface ComposeResult {
+  ok: boolean
+  html?: string
+  summary: string
+  duration?: number
+  scenes?: string[]
+  error?: string
+  fallback?: boolean
+}
+
+/** Ask Claude to author a complete, render-ready Hyperframes composition. */
+export async function composeVideoAI(input: {
+  prompt: string
+  flow?: string
+  aspect: AspectRatio
+  durationSec: number
+  palette: string[]
+  brand?: { title?: string; description?: string }
+}): Promise<ComposeResult> {
+  try {
+    const r = await fetch('/api/ai/compose', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    const data = await r.json()
+    if (!data.ok || !data.html) return { ok: false, summary: '', error: data.error || 'compose failed', fallback: true }
+    return data as ComposeResult
+  } catch (e) {
+    return { ok: false, summary: '', error: String((e as Error)?.message || e), fallback: true }
+  }
+}
+
+/** Ask Claude to rewrite an existing composition per a natural-language edit. */
+export async function editCompositionAI(html: string, prompt: string): Promise<ComposeResult> {
+  try {
+    const r = await fetch('/api/ai/edit-composition', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ html, prompt }),
+    })
+    const data = await r.json()
+    if (!data.ok || !data.html) return { ok: false, summary: '', error: data.error || 'edit failed' }
+    return data as ComposeResult
+  } catch (e) {
+    return { ok: false, summary: '', error: String((e as Error)?.message || e) }
+  }
 }
 
 // ── Storyboard generation ───────────────────────────────────────────────────

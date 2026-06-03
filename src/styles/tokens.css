@@ -1,6 +1,5 @@
-/* ── Imagine Art · Motion Studio design tokens ─────────────────────────────
-   Mapped 1:1 to the ImagineArt Design System V-3 (dark theme).
-   Brand purple #8A3FFC · neutral ramp · Inter/Outfit · no off-brand accents. */
+/* ── Vibe Motion · ImagineArt Design System V-3 (dark theme) ────────────────
+   Brand purple #8A3FFC · neutral ramp · Google Sans Flex / Inter · dark mode. */
 
 :root {
   /* Imagine purple ramp */
@@ -75,7 +74,7 @@
 
   /* Typography */
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --font-display: 'Google Sans', 'Outfit', 'Inter', system-ui, sans-serif;
+  --font-display: 'Google Sans Flex', 'Google Sans', 'Outfit', 'Inter', system-ui, sans-serif;
   --font-mono: 'Sometype Mono', 'JetBrains Mono', ui-monospace, monospace;
 
   /* Layout */

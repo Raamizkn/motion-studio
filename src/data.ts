@@ -343,3 +343,203 @@ export function buildEditorState(frames: StoryboardFrame[], config: VideoProject
 }
 
 export { uid }
+
+// ── Vibe Motion flow configs ───────────────────────────────────────────────
+
+export type FlowType = 'presentations' | 'text-motion' | 'infographics' | 'posters' | 'create-new'
+
+export interface FlowConfig {
+  id: FlowType
+  title: string
+  subtitle: string
+  description: string
+  palette: string[]
+  aspect: AspectRatio
+  durationSec: number
+  transition: TransitionKind
+  promptPlaceholder: string
+  assistSuggestions: string[]
+  quickFields: FlowField[]
+}
+
+export interface FlowField {
+  id: string
+  label: string
+  type: 'text' | 'textarea' | 'select' | 'radio'
+  placeholder?: string
+  options?: { value: string; label: string }[]
+  defaultValue?: string
+}
+
+// ── Themes (brand design systems Claude builds the video from) ──────────────
+export interface VibeTheme {
+  id: string
+  name: string
+  /** visual register Claude should commit to */
+  register: string
+  colors: { surface: string; primary: string; secondary: string; tertiary?: string; accent?: string }
+  titleFont: string
+  bodyFont: string
+  logoText?: string
+  styleNotes?: string
+  builtin?: boolean
+}
+
+export const BUILTIN_THEMES: VibeTheme[] = [
+  {
+    id: 'editorial',
+    name: 'Editorial Press',
+    register: 'editorial / institutional',
+    colors: { surface: '#F5F2EC', primary: '#141414', secondary: '#3B5BDB', tertiary: '#8A8575', accent: '#E8590C' },
+    titleFont: 'Source Serif 4',
+    bodyFont: 'DM Sans',
+    styleNotes: 'Warm paper surface, near-black ink, oversized serif display, 2–4px solid borders, HARD offset shadows (not blurred), hairline rules, paper grain, ghost background words, proof-dense. The YC register.',
+    builtin: true,
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight Product',
+    register: 'modern product / tech',
+    colors: { surface: '#0a0a0c', primary: '#ffffff', secondary: '#8a3ffc', tertiary: '#a56eff', accent: '#4e7bff' },
+    titleFont: 'Outfit',
+    bodyFont: 'Inter',
+    styleNotes: 'Dark cinematic base, radial mesh-gradient backdrops, glassmorphism cards, soft long shadows, accent glow, tight geometric sans 700–900.',
+    builtin: true,
+  },
+  {
+    id: 'sunrise',
+    name: 'Sunrise Bold',
+    register: 'playful / consumer',
+    colors: { surface: '#FFF8F0', primary: '#1a1208', secondary: '#FF6B35', tertiary: '#F7B801', accent: '#7B2FF7' },
+    titleFont: 'Outfit',
+    bodyFont: 'DM Sans',
+    styleNotes: 'Bright warm surface, rounded forms, bold color blocks, springy back.out motion, big friendly type.',
+    builtin: true,
+  },
+  {
+    id: 'mono',
+    name: 'Mono Minimal',
+    register: 'minimal / luxury',
+    colors: { surface: '#0d0d0d', primary: '#fafafa', secondary: '#fafafa', tertiary: '#6a6a6a', accent: '#d4af37' },
+    titleFont: 'Outfit',
+    bodyFont: 'Inter',
+    styleNotes: 'Near-black surface, single restrained metallic accent, vast negative space, slow confident motion, thin hairlines, monochrome with one gold accent.',
+    builtin: true,
+  },
+]
+
+export const FLOW_CONFIGS: Record<FlowType, FlowConfig> = {
+  presentations: {
+    id: 'presentations',
+    title: 'Presentation Video',
+    subtitle: 'Smooth controlled motion for modern slides',
+    description: 'Slide-by-slide video with animated transitions, charts, and professional typography.',
+    palette: PALETTES.violet,
+    aspect: '16:9',
+    durationSec: 30,
+    transition: 'slide',
+    promptPlaceholder: 'e.g. A 6-slide investor deck for our Series A fundraise with financial charts…',
+    assistSuggestions: [
+      'A corporate quarterly earnings presentation with animated bar charts',
+      'A 5-slide product roadmap deck with timeline animations',
+      'An investor pitch with market size charts and growth projections',
+      'A team onboarding presentation with step-by-step animations',
+      'A competitive analysis slide with animated comparison tables',
+    ],
+    quickFields: [
+      { id: 'topic', label: 'Presentation topic', type: 'textarea', placeholder: 'What is your presentation about? Who is the audience?' },
+      { id: 'slides', label: 'Number of slides', type: 'radio', options: [{ value: '4', label: '4 slides' }, { value: '6', label: '6 slides' }, { value: '8', label: '8 slides' }, { value: '12', label: '12 slides' }], defaultValue: '6' },
+      { id: 'style', label: 'Visual style', type: 'radio', options: [{ value: 'corporate', label: 'Corporate' }, { value: 'minimal', label: 'Minimal' }, { value: 'bold', label: 'Bold' }, { value: 'creative', label: 'Creative' }], defaultValue: 'corporate' },
+    ],
+  },
+  'text-motion': {
+    id: 'text-motion',
+    title: 'Visual Text Motion',
+    subtitle: 'Bring text to life with expressive animations',
+    description: 'Cinematic animated text sequences — titles, quotes, lower thirds, and kinetic typography.',
+    palette: PALETTES.sunset,
+    aspect: '9:16',
+    durationSec: 15,
+    transition: 'fade',
+    promptPlaceholder: 'e.g. Animated title sequence for "Inspire" with typewriter effect on dark background…',
+    assistSuggestions: [
+      'Typewriter animation revealing "Inspire" on a moody dark background',
+      'Kinetic typography for a product launch announcement',
+      'Animated quote card with staggered word reveal',
+      'Bold title card with glitch effect for a tech brand',
+      'Minimal word-by-word fade for a motivational message',
+    ],
+    quickFields: [
+      { id: 'text', label: 'Your text or message', type: 'textarea', placeholder: 'Enter the text you want to animate — a headline, quote, or message…' },
+      { id: 'animation', label: 'Animation style', type: 'radio', options: [{ value: 'typewriter', label: 'Typewriter' }, { value: 'kinetic', label: 'Kinetic' }, { value: 'fade', label: 'Word Fade' }, { value: 'glitch', label: 'Glitch' }], defaultValue: 'typewriter' },
+      { id: 'background', label: 'Background', type: 'radio', options: [{ value: 'dark', label: 'Dark' }, { value: 'gradient', label: 'Gradient' }, { value: 'photo', label: 'Photo' }, { value: 'minimal', label: 'Minimal' }], defaultValue: 'dark' },
+    ],
+  },
+  infographics: {
+    id: 'infographics',
+    title: 'Animated Infographic',
+    subtitle: 'Data and visuals that tell a story',
+    description: 'Animated charts, stats, timelines, and data visualizations that engage and inform.',
+    palette: PALETTES.ocean,
+    aspect: '16:9',
+    durationSec: 20,
+    transition: 'wipe',
+    promptPlaceholder: 'e.g. Animated bar chart showing quarterly revenue growth with 3D pie chart for market share…',
+    assistSuggestions: [
+      'Animated bar chart comparing Q1–Q4 revenue with growth arrows',
+      'World map with animated data points showing global reach',
+      'Step-by-step process diagram with numbered animations',
+      'Timeline infographic for company milestones 2020–2024',
+      'Animated pie chart with percentage callouts for market data',
+    ],
+    quickFields: [
+      { id: 'data', label: 'Data / content to visualize', type: 'textarea', placeholder: 'Paste your data, stats, or describe what you want to visualize…' },
+      { id: 'chartType', label: 'Primary chart type', type: 'radio', options: [{ value: 'bar', label: 'Bar Chart' }, { value: 'pie', label: 'Pie Chart' }, { value: 'timeline', label: 'Timeline' }, { value: 'map', label: 'Map' }], defaultValue: 'bar' },
+      { id: 'tone', label: 'Tone', type: 'radio', options: [{ value: 'corporate', label: 'Corporate' }, { value: 'editorial', label: 'Editorial' }, { value: 'playful', label: 'Playful' }], defaultValue: 'corporate' },
+    ],
+  },
+  posters: {
+    id: 'posters',
+    title: 'Animated Poster',
+    subtitle: 'Effortlessly create posters for your brand',
+    description: 'Eye-catching animated posters, social cards, and promotional visuals.',
+    palette: PALETTES.rose,
+    aspect: '9:16',
+    durationSec: 10,
+    transition: 'zoom',
+    promptPlaceholder: 'e.g. A vibrant event poster for a music festival with animated neon elements…',
+    assistSuggestions: [
+      'Neon-accented event poster with animated glow effects',
+      'Minimal product showcase poster with floating elements',
+      'Bold typographic poster for a fashion brand launch',
+      'Seasonal sale poster with confetti and price animations',
+      'Music release poster with waveform visualizer and album art',
+    ],
+    quickFields: [
+      { id: 'purpose', label: 'Poster purpose', type: 'text', placeholder: 'e.g. Event promotion, product launch, sale announcement…' },
+      { id: 'style', label: 'Visual style', type: 'radio', options: [{ value: 'bold', label: 'Bold' }, { value: 'minimal', label: 'Minimal' }, { value: 'neon', label: 'Neon' }, { value: 'editorial', label: 'Editorial' }], defaultValue: 'bold' },
+      { id: 'format', label: 'Format', type: 'radio', options: [{ value: '9:16', label: 'Portrait (9:16)' }, { value: '1:1', label: 'Square (1:1)' }, { value: '16:9', label: 'Landscape (16:9)' }], defaultValue: '9:16' },
+    ],
+  },
+  'create-new': {
+    id: 'create-new',
+    title: 'Create from Scratch',
+    subtitle: 'Build any motion video you want',
+    description: 'Full creative control — custom prompt, format, engine, and timeline.',
+    palette: PALETTES.lime,
+    aspect: '16:9',
+    durationSec: 30,
+    transition: 'fade',
+    promptPlaceholder: 'Describe the video you want to create…',
+    assistSuggestions: [
+      'A 30-second brand story video with cinematic transitions',
+      'A social media ad with product highlights and a CTA',
+      'An explainer video breaking down a complex concept',
+      'A motion logo reveal with particle effects',
+      'A customer testimonial video with animated quote cards',
+    ],
+    quickFields: [
+      { id: 'prompt', label: 'Describe your video', type: 'textarea', placeholder: 'What do you want to create?' },
+    ],
+  },
+}
