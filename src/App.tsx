@@ -262,8 +262,8 @@ export function App() {
         <Route path="/studio/projects/:id/generate" element={<Shell><GenerateScreen /></Shell>} />
         {/* Legacy storyboard route now redirects into the generate pipeline */}
         <Route path="/studio/projects/:id/storyboard" element={<RedirectToGenerate />} />
-        {/* Editor is full-screen — no shell */}
-        <Route path="/studio/projects/:id/editor" element={<VideoEditor />} />
+        {/* Editor runs inside the director workspace shell (sidebar + topnav) */}
+        <Route path="/studio/projects/:id/editor" element={<Shell><VideoEditor /></Shell>} />
         <Route path="*" element={<Shell><Placeholder /></Shell>} />
       </Routes>
     </BrowserRouter>

@@ -9,8 +9,6 @@ import type { OverlayElement, ChatMessage, AspectRatio } from '../types'
 import {
   LayerPanel,
   ContextualToolbar,
-  AIPromptBar,
-  AIChatPanel,
   Timeline,
   FirstRunTour,
   ExportModal,
@@ -41,7 +39,6 @@ export function VideoEditor() {
   const [zoom, setZoom] = useState(28) // px per second
   const [exportOpen, setExportOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
-  const [leftOpen, setLeftOpen] = useState(true)
   const [rightOpen, setRightOpen] = useState(true)
   const [chat, setChat] = useState<ChatMessage[]>([])
   const [tour, setTour] = useState(() => localStorage.getItem(`ms-tour-${id}`) !== '1')
@@ -199,37 +196,173 @@ export function VideoEditor() {
     setChat((c) => [...c.filter((m) => m.id !== 'pending'), aiMsg])
   }
 
+  const onRunAssist = (prompt: string) => {
+    if (!prompt.trim()) return
+    runAI(prompt, selName ? `Selected: ${selName}` : 'Whole video')
+  }
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
-      <EditorTopBar
-        project={project}
-        time={time}
-        duration={duration}
-        playing={playing}
-        onPlay={() => setPlaying((p) => !p)}
-        onSeekStart={() => { setTime(0); setPlaying(false) }}
-        canUndo={store.canUndo(id)}
-        canRedo={store.canRedo(id)}
-        onUndo={() => store.undo(id)}
-        onRedo={() => store.redo(id)}
-        onBack={() => nav(`/studio/projects/${id}/storyboard`)}
-        onExport={() => setExportOpen(true)}
-        onPublish={() => setPublishOpen(true)}
-        onRename={(n: string) => store.renameProject(id, n)}
-        hasVideo={!!videoUrl}
-      />
+    <div className="ed-root">
+      <style>{`
+        .ed-root { display: flex; height: 100%; width: 100%; background: var(--bg); overflow: hidden; }
 
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        {/* LEFT layers */}
-        {leftOpen ? (
-          <LayerPanel id={id} scene={currentScene} onCollapse={() => setLeftOpen(false)} />
-        ) : (
-          <button className="btn icon ghost" onClick={() => setLeftOpen(true)} style={{ alignSelf: 'flex-start', margin: 8 }} aria-label="Open layers"><Icon name="layers" size={18} /></button>
-        )}
+        /* ── Left assist (384px col, 360px frame; Vibe Motion brand) ── */
+        .ed-assist { width: 384px; flex: none; height: 100%; padding: 24px 16px 16px 8px; display: flex; }
+        .ed-assist-frame {
+          flex: 1; display: flex; flex-direction: column;
+          background: var(--bg-elev); border: 1px solid var(--border);
+          border-radius: var(--r-panel);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.16);
+          overflow: hidden;
+        }
+        .ed-assist-head {
+          height: 64px; flex: none; display: flex; align-items: center; gap: 8px;
+          padding: 0 16px; border-bottom: 1px solid var(--border);
+        }
+        .ed-assist-title { flex: 1; font-family: var(--font-display); font-weight: 500; font-size: 16px; color: var(--text); letter-spacing: 0.01em; }
+        .ed-hbtn { width: 32px; height: 32px; border-radius: 999px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-2); cursor: pointer; display: grid; place-items: center; transition: background .14s; }
+        .ed-hbtn:hover { background: var(--surface); }
+        .ed-hbtn.solid { background: var(--surface-3); border-color: transparent; }
+        .ed-assist-body { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .ed-msg { padding: 10px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.5; max-width: 92%; }
+        .ed-msg.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+        .ed-msg.ai { align-self: flex-start; background: var(--surface); color: var(--text); border-bottom-left-radius: 4px; }
+        .ed-msg-tools { font-size: 11px; color: var(--text-3); font-family: var(--font-mono); margin-top: 4px; padding-left: 4px; }
+        .ed-msg-empty { color: var(--text-3); font-size: 13px; line-height: 1.55; text-align: center; margin: 40px 4px 0; }
+        .ed-assist-foot { flex: none; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+        .ed-prompt {
+          background: var(--bg-elev); border: 1px solid var(--border-strong);
+          border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 10px;
+        }
+        .ed-prompt-input { background: transparent; border: none; outline: none; color: var(--text); font-size: 14px; font-family: var(--font); min-height: 22px; }
+        .ed-prompt-input::placeholder { color: var(--text-4); }
+        .ed-prompt-bar { display: flex; align-items: center; gap: 8px; }
+        .ed-prompt-context { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: var(--accent-soft); color: var(--accent-2); border-radius: 999px; font-size: 12px; font-weight: 500; }
+        .ed-prompt-send { margin-left: auto; width: 32px; height: 32px; border-radius: 999px; border: none; background: var(--accent); color: #fff; cursor: pointer; display: grid; place-items: center; }
+        .ed-prompt-send:disabled { opacity: 0.5; cursor: default; }
+        .ed-prompt-foot { font-size: 11px; color: var(--text-4); text-align: center; }
 
-        {/* CENTER */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, position: 'relative' }}>
-          <div style={{ flex: 1, display: 'grid', placeItems: 'center', padding: 24, position: 'relative', overflow: 'hidden' }}>
+        /* ── Center column ── */
+        .ed-center { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; padding: 24px 8px 16px; gap: 16px; }
+        .ed-cmdbar {
+          flex: none; height: 48px;
+          background: var(--bg-elev); border: 1px solid var(--border); border-radius: 16px;
+          display: flex; align-items: center; gap: 8px;
+          padding: 0 12px;
+        }
+        .ed-name {
+          background: transparent; border: none; outline: none;
+          color: var(--text); font-family: var(--font-display); font-weight: 500;
+          font-size: 14px; min-width: 100px; max-width: 240px;
+        }
+        .ed-cmdbtn { height: 32px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-family: var(--font-display); font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+        .ed-cmdbtn:disabled { opacity: 0.5; cursor: default; }
+        .ed-cmdbtn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+        .ed-cmdbtn.icon { width: 32px; padding: 0; justify-content: center; }
+        .ed-time { font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); min-width: 96px; text-align: center; }
+        .ed-sep { width: 1px; height: 20px; background: var(--border-strong); }
+
+        .ed-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; position: relative; }
+        .ed-stage-card {
+          width: 100%; height: 100%;
+          background: var(--bg-elev);
+          border: 1px solid var(--border); border-radius: 16px;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+          overflow: hidden;
+          display: flex; align-items: center; justify-content: center;
+          position: relative;
+        }
+        .ed-toolbar-float { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 30; }
+        .ed-err {
+          position: absolute; bottom: 16px; left: 16px;
+          background: var(--bg-elev); border: 1px solid var(--red);
+          padding: 10px 14px; border-radius: 12px;
+          color: var(--red); font-size: 13px; display: flex; gap: 10px; align-items: center;
+        }
+        .ed-timeline-wrap { flex: none; }
+
+        /* ── Right drawer ── */
+        .ed-drawer-col { display: flex; height: 100%; padding: 24px 16px 16px 0; }
+        .ed-drawer {
+          width: 280px; flex: none; display: flex; flex-direction: column;
+          background: var(--bg-elev); border: 1px solid var(--border);
+          border-radius: var(--r-panel);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.16);
+          overflow: hidden;
+        }
+        /* defang LayerPanel's own chrome so it fills our director drawer */
+        .ed-drawer > div:first-child { width: 100% !important; border-right: none !important; background: transparent !important; flex: 1 !important; }
+        .ed-drawer-tab {
+          align-self: center; margin: auto 0;
+          width: 28px; height: 56px; border-radius: 12px 0 0 12px;
+          background: var(--bg-elev); border: 1px solid var(--border); border-right: none;
+          color: var(--text-2); cursor: pointer; display: grid; place-items: center;
+        }
+      `}</style>
+
+      {/* ── LEFT: Vibe Motion assist (chat) ── */}
+      <aside className="ed-assist">
+        <div className="ed-assist-frame">
+          <div className="ed-assist-head">
+            <span className="ed-assist-title">Vibe Motion</span>
+            <button className="ed-hbtn" onClick={() => setChat([])} aria-label="New chat"><Icon name="plus" size={16} /></button>
+            <button className="ed-hbtn" aria-label="History"><Icon name="undo" size={16} /></button>
+            <button className="ed-hbtn solid" onClick={() => nav('/studio')} aria-label="Close"><Icon name="close" size={16} /></button>
+          </div>
+
+          <div className="ed-assist-body">
+            {chat.length === 0 && (
+              <div className="ed-msg-empty">
+                <Icon name="sparkle" size={24} style={{ color: 'var(--accent-2)' }} />
+                <p style={{ marginTop: 10 }}>Describe any change and I'll apply it — move elements, restyle text, add subtitles, reformat, or tighten transitions.</p>
+              </div>
+            )}
+            {chat.map((m) => (
+              <div key={m.id} style={{ display: 'flex', flexDirection: 'column' }}>
+                <div className={`ed-msg ${m.role}`}>{m.text}</div>
+                {m.toolCalls && m.toolCalls.length > 0 && (
+                  <div className="ed-msg-tools">{m.toolCalls.map((t, i) => <div key={i}>↳ {t.tool}</div>)}</div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="ed-assist-foot">
+            <div className="ed-prompt">
+              <PromptInput onSend={onRunAssist} />
+              <div className="ed-prompt-bar">
+                <span className="ed-prompt-context">
+                  <Icon name="sparkle" size={12} />
+                  {selName ? selName : 'Whole video'}
+                </span>
+              </div>
+            </div>
+            <div className="ed-prompt-foot">ImagineArt can make mistakes. Check important info.</div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ── CENTER: command bar + stage + timeline ── */}
+      <div className="ed-center">
+        <div className="ed-cmdbar">
+          <button className="ed-cmdbtn icon" onClick={() => nav('/studio')} aria-label="Back"><Icon name="arrowLeft" size={16} /></button>
+          <input className="ed-name" defaultValue={project.name} onBlur={(e) => store.renameProject(id, e.target.value)} />
+          <div className="ed-sep" />
+          <button className="ed-cmdbtn icon" disabled={!store.canUndo(id)} onClick={() => store.undo(id)} aria-label="Undo"><Icon name="undo" size={15} /></button>
+          <button className="ed-cmdbtn icon" disabled={!store.canRedo(id)} onClick={() => store.redo(id)} aria-label="Redo"><Icon name="redo" size={15} /></button>
+          <div className="ed-sep" />
+          <button className="ed-cmdbtn icon" onClick={() => { setTime(0); setPlaying(false) }} aria-label="To start"><Icon name="chevLeft" size={15} /></button>
+          <button className="ed-cmdbtn primary icon" onClick={() => setPlaying((p) => !p)} aria-label="Play/Pause" data-tour="play"><Icon name={playing ? 'pause' : 'play'} size={15} /></button>
+          <span className="ed-time">{fmt(time)} / {fmt(duration)}</span>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }} data-tour="export">
+            <span className="ed-cmdbtn"><Icon name="image" size={14} /> {aspect}</span>
+            <button className="ed-cmdbtn" onClick={() => setExportOpen(true)}><Icon name="download" size={14} /> Export</button>
+            <button className="ed-cmdbtn primary" onClick={() => setPublishOpen(true)}><Icon name="share" size={14} /> Publish</button>
+          </div>
+        </div>
+
+        <div className="ed-stage">
+          <div className="ed-stage-card">
             <Canvas
               aspect={aspect}
               videoUrl={videoUrl}
@@ -243,40 +376,46 @@ export function VideoEditor() {
               onMoveEnd={() => store.snapshot(id)}
               onText={textItem}
             />
+            {sel && (
+              <div className="ed-toolbar-float">
+                <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />
+              </div>
+            )}
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
             {renderErr && (
-              <div className="card" style={{ position: 'absolute', bottom: 20, padding: '12px 16px', color: 'var(--red)', display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div className="ed-err">
                 <Icon name="close" size={16} /> {renderErr}
-                <button className="btn sm" onClick={startExportRender}>Retry</button>
+                <button className="ed-cmdbtn" onClick={startExportRender}>Retry</button>
               </div>
             )}
             {tour && <FirstRunTour onDone={() => { setTour(false); localStorage.setItem(`ms-tour-${id}`, '1') }} />}
           </div>
-
-          {/* contextual toolbar */}
-          {sel && <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />}
-
-          {/* AI prompt bar */}
-          <AIPromptBar selectedName={selName} onRun={runAI} />
         </div>
 
-        {/* RIGHT chat */}
-        {rightOpen ? (
-          <AIChatPanel chat={chat} selectedName={selName} onCollapse={() => setRightOpen(false)} onRun={(p) => runAI(p, selName ? 'Selected element' : 'Whole video')} />
-        ) : (
-          <button className="btn icon ghost" onClick={() => setRightOpen(true)} style={{ alignSelf: 'flex-start', margin: 8 }} aria-label="Open AI"><Icon name="sparkle" size={18} /></button>
-        )}
+        <div className="ed-timeline-wrap">
+          <Timeline
+            id={id}
+            time={time}
+            duration={duration}
+            zoom={zoom}
+            onZoom={setZoom}
+            onSeek={(t) => { setTime(Math.max(0, Math.min(duration, t))); setPlaying(false) }}
+          />
+        </div>
       </div>
 
-      {/* TIMELINE */}
-      <Timeline
-        id={id}
-        time={time}
-        duration={duration}
-        zoom={zoom}
-        onZoom={setZoom}
-        onSeek={(t) => { setTime(Math.max(0, Math.min(duration, t))); setPlaying(false) }}
-      />
+      {/* ── RIGHT: collapsible layers drawer ── */}
+      {rightOpen ? (
+        <div className="ed-drawer-col">
+          <div className="ed-drawer">
+            <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />
+          </div>
+        </div>
+      ) : (
+        <button className="ed-drawer-tab" onClick={() => setRightOpen(true)} aria-label="Expand layers">
+          <Icon name="chevLeft" size={16} />
+        </button>
+      )}
 
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} project={project} videoUrl={videoUrl} onRender={startExportRender} />
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} project={project} />
@@ -284,39 +423,25 @@ export function VideoEditor() {
   )
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-function EditorTopBar(props: any) {
-  const { project, time, duration, playing, onPlay, onSeekStart, canUndo, canRedo, onUndo, onRedo, onBack, onExport, onPublish, onRename, hasVideo } = props
-  const [exportMenu, setExportMenu] = useState(false)
+/* Inline auto-expanding prompt input used in the assist panel */
+function PromptInput({ onSend }: { onSend: (v: string) => void }) {
+  const [val, setVal] = useState('')
   return (
-    <header style={{ height: 50, flex: 'none', display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', borderBottom: '1px solid var(--border)', background: 'var(--bg-elev)' }}>
-      <button className="btn icon sm ghost" onClick={onBack} aria-label="Back"><Icon name="arrowLeft" size={16} /></button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 13 }}>
-        <div style={{ width: 20, height: 20, borderRadius: 6, background: 'var(--accent-grad)', display: 'grid', placeItems: 'center' }}><Icon name="motion" size={12} style={{ color: '#fff' }} /></div>
-        Motion Studio
-      </div>
-      <input defaultValue={project.name} onBlur={(e) => onRename(e.target.value)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 13, maxWidth: 200, outline: 'none' }} />
-      <div style={{ width: 1, height: 22, background: 'var(--border)' }} />
-      <button className="btn icon sm ghost" disabled={!canUndo} onClick={onUndo} aria-label="Undo"><Icon name="undo" size={16} /></button>
-      <button className="btn icon sm ghost" disabled={!canRedo} onClick={onRedo} aria-label="Redo"><Icon name="redo" size={16} /></button>
-      <div style={{ width: 1, height: 22, background: 'var(--border)' }} />
-      <button className="btn icon sm ghost" onClick={onSeekStart} aria-label="To start"><Icon name="chevLeft" size={16} /></button>
-      <button className="btn icon sm primary" onClick={onPlay} aria-label="Play/Pause" data-tour="play"><Icon name={playing ? 'pause' : 'play'} size={15} /></button>
-      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-2)', minWidth: 92 }}>{fmt(time)} / {fmt(duration)}</span>
-      <div style={{ marginLeft: 'auto', display: 'flex', gap: 9, position: 'relative' }} data-tour="export">
-        <div style={{ position: 'relative' }}>
-          <button className="btn sm" onClick={() => setExportMenu((m) => !m)}><Icon name="download" size={15} /> Export <Icon name="chevDown" size={13} /></button>
-          {exportMenu && (
-            <div className="card" style={{ position: 'absolute', top: 38, right: 0, zIndex: 40, padding: 5, width: 150, background: 'var(--bg-elev)', boxShadow: 'var(--shadow-pop)' }}>
-              {['MP4', 'WebM', 'GIF', 'MOV', 'Image Sequence'].map((f) => (
-                <button key={f} onClick={() => { setExportMenu(false); onExport() }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 9px', borderRadius: 6, fontSize: 12.5 }} onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--surface-2)')} onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}>{f}</button>
-              ))}
-            </div>
-          )}
-        </div>
-        <button className="btn primary sm" onClick={onPublish}><Icon name="share" size={15} /> Publish</button>
-      </div>
-    </header>
+    <textarea
+      className="ed-prompt-input"
+      value={val}
+      onChange={(e) => setVal(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey && val.trim()) {
+          e.preventDefault()
+          onSend(val)
+          setVal('')
+        }
+      }}
+      placeholder="Ask AI to edit your video…"
+      rows={1}
+      style={{ resize: 'none' }}
+    />
   )
 }
 
