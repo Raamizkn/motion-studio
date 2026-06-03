@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { Icon } from '../components/Icon'
 import { DirectorView, Skeleton } from '../components/DirectorView'
-import { composeVideoAI } from '../ai'
+import { composeVideoAI, generateNarrationAI } from '../ai'
 import { startRender, pollRender } from '../render'
 import { BUILTIN_THEMES } from '../data'
 
@@ -29,6 +29,7 @@ export function GenerateScreen() {
   const project = useStore((s) => s.projects.find((p) => p.id === id))
   const setStatus = useStore((s) => s.setStatus)
   const setComposedHtml = useStore((s) => s.setComposedHtml)
+  const setNarration = useStore((s) => s.setNarration)
   const userThemes = useStore((s) => s.userThemes)
 
   const [phase, setPhase] = useState<Phase>('compose')
@@ -83,6 +84,22 @@ export function GenerateScreen() {
         if (result.ok && result.html) {
           setComposedHtml(project.id, result.html, result.summary)
           setSummary(result.summary || '')
+
+          // voiceover requested → write + voice narration so the first render has sound
+          if (project.config.voiceover?.enabled) {
+            setStepIdx(2)
+            const narr = await generateNarrationAI({
+              id: project.id,
+              html: result.html,
+              summary: result.summary,
+              prompt: project.config.prompt,
+              durationSec: result.duration || project.config.durationSec,
+              voiceStyle: project.config.voiceover.style || 'warm',
+            })
+            if (narr.ok && narr.url) {
+              setNarration(project.id, { url: narr.url, script: narr.script, duration: narr.duration, voice: narr.voice })
+            }
+          }
         } else {
           setUsedFallback(true)
         }

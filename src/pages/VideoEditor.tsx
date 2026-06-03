@@ -58,6 +58,7 @@ export function VideoEditor() {
   const rafRef = useRef<number>()
   const [narrating, setNarrating] = useState(false)
   const [narrErr, setNarrErr] = useState<string | null>(null)
+  const [narrNonce, setNarrNonce] = useState(0) // remounts <audio> so a re-narration reloads
 
   useEffect(() => { if (id) ensureEditor(id) }, [id, ensureEditor])
 
@@ -218,6 +219,7 @@ export function VideoEditor() {
       })
       if (res.ok && res.url) {
         store.setNarration(id, { url: res.url, script: res.script, duration: res.duration, voice: res.voice })
+        setNarrNonce((n) => n + 1)
         setVideoUrl(null) // any exported MP4 is now stale (no narration baked in)
       } else {
         setNarrErr(res.needsKey ? 'Add your ElevenLabs API key to .env to enable narration.' : (res.error || 'Narration failed'))
@@ -574,7 +576,7 @@ export function VideoEditor() {
               </div>
             )}
             {/* narration audio — synced to the preview transport */}
-            {narrationUrl && <audio ref={audioRef} src={narrationUrl} preload="auto" style={{ display: 'none' }} />}
+            {narrationUrl && <audio key={narrNonce} ref={audioRef} src={`${narrationUrl}?v=${narrNonce}`} preload="auto" style={{ display: 'none' }} />}
             {rendering && <RenderOverlay progress={progress} stage={stage} />}
             {narrating && (
               <div className="ed-narrating">

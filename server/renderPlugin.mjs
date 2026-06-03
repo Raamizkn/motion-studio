@@ -15,7 +15,7 @@ const jobs = new Map()
 // on-disk path inside WORK. Reject anything that escapes the renders dir.
 function resolveAudio(audioUrl) {
   if (!audioUrl || typeof audioUrl !== 'string') return null
-  const rel = audioUrl.replace(/^\/renders\//, '')
+  const rel = audioUrl.split('?')[0].replace(/^\/renders\//, '')
   const file = path.join(WORK, rel)
   if (!file.startsWith(WORK)) return null
   return fs.existsSync(file) ? file : null
