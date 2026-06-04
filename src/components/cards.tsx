@@ -181,9 +181,20 @@ function CompThumb({ html, aspect, playing }: { html: string; aspect: string; pl
   const applyMode = (tl: any) => {
     if (!tl) return
     try {
-      if (playing) { tl.repeat(-1); tl.play(0) }
-      // settled hold: past the entrance, before mid transitions — never a fade
-      else { tl.pause(); tl.repeat(0); tl.seek(Math.min(2.2, tl.duration() * 0.45)) }
+      if (playing) {
+        // Scene-stack compositions set initial visibility BEFORE the timeline, so a
+        // raw repeat leaves early scenes hidden on loop 2. Clear GSAP's inline
+        // opacity/visibility at each repeat boundary so every loop starts clean.
+        const doc = iref.current?.contentDocument
+        tl.repeat(-1)
+        tl.eventCallback('onRepeat', () => {
+          try { doc?.querySelectorAll<HTMLElement>('*').forEach((el) => { el.style.opacity = ''; el.style.visibility = '' }) } catch { /* */ }
+        })
+        tl.play(0)
+      } else {
+        // settled hold: past the entrance, before mid transitions — never a fade
+        tl.pause(); tl.repeat(0); tl.seek(Math.min(2.2, tl.duration() * 0.45))
+      }
     } catch { /* */ }
   }
   const onLoad = () => {
@@ -268,7 +279,7 @@ export function ProjectCard({ project }: { project: VideoProject }) {
     >
       <div className="tpl-tile-art">
         {project.composedHtml
-          ? <CompThumb html={project.composedHtml} aspect={project.config.aspect} playing={hover} />
+          ? <CompThumb html={project.composedHtml} aspect={project.config.aspect} playing />
           : <ComposingThumb aspect={project.config.aspect} composing={project.status === 'composing'} />}
       </div>
 
