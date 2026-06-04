@@ -583,7 +583,7 @@ export function VideoEditor() {
         <div className="ed-stage">
           <div className="ed-stage-card">
             {useGrid ? (
-              <GridStage videoRef={videoRef} videoUrl={videoUrl} aspect={aspect} />
+              <GridStage videoRef={videoRef} videoUrl={videoUrl} aspect={aspect} project={project} time={time} />
             ) : useLive ? (
               <LiveCanvas
                 html={project.composedHtml!}
@@ -742,17 +742,27 @@ function CompositionLayers({ els, selectedEid, onSelect, onCollapse }: { els: im
   )
 }
 
-// ── Grid stage: play the generated MP4 through the shared transport ──────────
-function GridStage({ videoRef, videoUrl, aspect }: { videoRef: React.RefObject<HTMLVideoElement>; videoUrl: string | null; aspect: AspectRatio }) {
+// ── Grid stage: play the storyboard through the shared transport ─────────────
+// With a real generated MP4 it plays the <video>; in the (Vercel-friendly) stub
+// there is no MP4, so it renders the current storyboard frame for the playhead —
+// the timeline clock advances `time`, switching frames as the film "plays".
+function GridStage({ videoRef, videoUrl, aspect, project, time }: { videoRef: React.RefObject<HTMLVideoElement>; videoUrl: string | null; aspect: AspectRatio; project: import('../types').VideoProject; time: number }) {
   const ratio = ASPECT_RATIO[aspect]
   const { outerRef, box } = useFit(ratio)
+  const spec = project.spec
+  const frames = project.frames || []
+  const cur = frames.find((f) => time >= f.start && time < f.end) || frames[frames.length - 1] || frames[0]
+  const specFrame = spec?.frames.find((sf) => sf.id === cur?.id) || spec?.frames[cur?.index ?? 0]
+  const vis = spec && specFrame ? stubFrameVisual(specFrame, spec.brand, spec, 0, 0) : null
   return (
     <div ref={outerRef} style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
       <div style={{ position: 'relative', width: box.w || '100%', height: box.h || undefined, aspectRatio: box.w ? undefined : String(ratio), borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
         {videoUrl ? (
           <video ref={videoRef} src={videoUrl} preload="auto" playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#0a0a0c' }} />
+        ) : vis ? (
+          <TemplatePreview key={cur?.id} register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
         ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Preparing video…</div>
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Preparing…</div>
         )}
       </div>
     </div>

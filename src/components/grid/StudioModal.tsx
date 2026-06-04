@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { GenSpec, UseCase } from '../../spec'
 import { useCaseDef } from '../../spec'
 import { stubVideoPlan, hashStr } from '../../engine/stub'
-import { startGridImage, startGridVideo, pollGrid } from '../../grid'
+import { startGridImage, startGridVideo, pollGrid, IMAGE_PHASES, VIDEO_PHASES } from '../../grid'
 import { useStore } from '../../store'
 import { Icon } from '../Icon'
 import { PhasedProgress } from './PhasedProgress'
@@ -12,18 +12,14 @@ import { StepStoryboard } from './steps/StepGrid'
 import type { Draft } from './wizard'
 import { initialDraft, applyUseCase, buildSpec } from './wizard'
 
-const IMAGE_PHASES = ['Computing grid geometry', 'Assembling mega-prompt', 'Generating storyboard', 'Receiving split frames']
-const VIDEO_PHASES = ['Routing video model', 'Planning clip segments', 'Synthesising clips', 'Stitching timeline']
-
 type Screen = 'setup' | 'storyboard' | 'done'
 type JobState = { status: 'rendering' | 'complete' | 'error'; progress: number; stage: string; error?: string | null }
 
 export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; onClose: () => void; initialUseCase?: UseCase }) {
   const nav = useNavigate()
   const createGridProject = useStore((s) => s.createGridProject)
-  const setGridResult = useStore((s) => s.setGridResult)
   const setVideoPlan = useStore((s) => s.setVideoPlan)
-  const setGeneratedVideo = useStore((s) => s.setGeneratedVideo)
+  const setStatus = useStore((s) => s.setStatus)
 
   const [draft, setDraft] = useState<Draft>(() => initialDraft(initialUseCase))
   const [screen, setScreen] = useState<Screen>('setup')
@@ -93,7 +89,7 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
     stopRef.current()
     stopRef.current = pollGrid(project.id, 'image', (s) => {
       setImageJob({ status: s.status === 'unknown' ? 'error' : s.status, progress: s.progress, stage: s.stage, error: s.error })
-      if (s.status === 'complete') { if (s.url) setGridResult(project.id, s.url); setPhase('idle') }
+      if (s.status === 'complete') setPhase('idle')
     })
   }
 
@@ -111,7 +107,7 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
     stopRef.current()
     stopRef.current = pollGrid(projectId, 'video', (s) => {
       setVideoJob({ status: s.status === 'unknown' ? 'error' : s.status, progress: s.progress, stage: s.stage, error: s.error })
-      if (s.status === 'complete' && s.url) { setGeneratedVideo(projectId, s.url); setPhase('idle'); setScreen('done') }
+      if (s.status === 'complete') { setStatus(projectId, 'complete'); setPhase('idle'); setScreen('done') }
     })
   }
 
