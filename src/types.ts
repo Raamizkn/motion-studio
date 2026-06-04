@@ -1,4 +1,5 @@
 // ── Core domain types for Motion Studio ──────────────────────────────────
+import type { GenSpec, VideoPlan } from './spec'
 
 export type AspectRatio = '16:9' | '9:16' | '1:1' | '4:5'
 export type ModelTier = 'standard' | 'pro' | 'cinema'
@@ -149,6 +150,20 @@ export interface VideoProject {
   narrationDuration?: number
   /** voice persona used for the current narration */
   narrationVoice?: string
+
+  // ── Storyboard-Grid engine (engine:'grid') ──────────────────────────────
+  /** which generation engine produced this project. Legacy projects are 'hyperframes'. */
+  engine?: 'grid' | 'hyperframes'
+  /** the compiled GenSpec the grid pipeline was built from */
+  spec?: GenSpec
+  /** URL of the generated storyboard grid image artifact (served from /renders/grid/...) */
+  gridImageUrl?: string
+  /** the split frame images as RETURNED BY THE MODEL API (we never crop client-side). URLs, never inline dataURLs. */
+  frameImages?: { frameId: string; url: string }[]
+  /** the planned video model + clip grouping + segment timing */
+  videoPlan?: VideoPlan
+  /** URL of the final generated video (served from /renders/grid/...) */
+  generatedVideoUrl?: string
 }
 
 export interface NarrationLine {

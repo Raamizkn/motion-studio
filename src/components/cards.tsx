@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { StudioTemplate, VideoProject } from '../types'
 import { Icon } from './Icon'
 import { useStore } from '../store'
+import { stubFrameVisual } from '../engine/stub'
 
 // Bespoke editorial preview — matches the warm-paper / serif register the
 // YC-style template actually produces, so the card reads true to the output.
@@ -234,6 +235,31 @@ function ComposingThumb({ aspect, composing }: { aspect: string; composing?: boo
   )
 }
 
+// Storyboard-Grid project thumbnail: the generated video (if ready), else the
+// first storyboard frame rendered from the spec. No client-side cropping —
+// these are the frames the model returns.
+function GridThumb({ project, playing }: { project: VideoProject; playing?: boolean }) {
+  const ratio = ASPECT_NUM[project.config.aspect] || 16 / 9
+  if (project.generatedVideoUrl) {
+    return (
+      <video
+        src={project.generatedVideoUrl}
+        muted
+        loop
+        playsInline
+        autoPlay={playing}
+        style={{ width: '100%', aspectRatio: `${ratio}`, objectFit: 'cover', background: '#0a0a0c', display: 'block', pointerEvents: 'none' }}
+      />
+    )
+  }
+  const f = project.spec?.frames[0]
+  if (project.spec && f) {
+    const vis = stubFrameVisual(f, project.spec.brand, project.spec, 0, 0)
+    return <TemplatePreview register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
+  }
+  return <ComposingThumb aspect={project.config.aspect} composing={project.status === 'composing'} />
+}
+
 // Mosaic tile — each template renders at its NATURAL aspect ratio so the grid
 // packs like puzzle pieces. Details live in a hover overlay, not a basic card.
 export function TemplateCard({ tpl, onUse }: { tpl: StudioTemplate; onUse: (t: StudioTemplate) => void }) {
@@ -265,7 +291,8 @@ export function ProjectCard({ project }: { project: VideoProject }) {
   const [menu, setMenu] = useState(false)
   const { renameProject, deleteProject, duplicateProject } = useStore()
   const ratio = ASPECT_NUM[project.config.aspect] || 16 / 9
-  const dest = project.composedHtml || project.status === 'complete' || project.status === 'rendering'
+  const isGrid = project.engine === 'grid'
+  const dest = isGrid || project.composedHtml || project.status === 'complete' || project.status === 'rendering'
     ? `/studio/projects/${project.id}/editor`
     : `/studio/projects/${project.id}/generate`
 
@@ -278,9 +305,11 @@ export function ProjectCard({ project }: { project: VideoProject }) {
       style={{ aspectRatio: `${ratio}` }}
     >
       <div className="tpl-tile-art">
-        {project.composedHtml
-          ? <CompThumb html={project.composedHtml} aspect={project.config.aspect} playing />
-          : <ComposingThumb aspect={project.config.aspect} composing={project.status === 'composing'} />}
+        {isGrid
+          ? <GridThumb project={project} playing={hover} />
+          : project.composedHtml
+            ? <CompThumb html={project.composedHtml} aspect={project.config.aspect} playing />
+            : <ComposingThumb aspect={project.config.aspect} composing={project.status === 'composing'} />}
       </div>
 
       {/* ⋮ menu */}

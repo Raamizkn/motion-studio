@@ -6,21 +6,26 @@ import type { FlowType } from '../data'
 import { TemplateCard, ProjectCard, TemplatePreview } from '../components/cards'
 import { Icon } from '../components/Icon'
 import type { StudioTemplate } from '../types'
+import type { UseCase } from '../spec'
+import { StudioModal } from '../components/grid/StudioModal'
 
-// ── Flow entry cards — each opens a flow, previewed with its register's motion ──
-type FlowCard = { id: FlowType; register: 'infographic' | 'presentation' | 'bold' | 'poster'; title: string; kicker: string; desc: string; palette: string[] }
+// ── Flow entry cards — each opens the Studio modal seeded to a use case ──────
+type FlowCard = { id: FlowType; useCase: UseCase; register: 'infographic' | 'presentation' | 'bold' | 'poster'; title: string; kicker: string; desc: string; palette: string[] }
 const VM_CARDS: FlowCard[] = [
-  { id: 'infographics', register: 'infographic', title: '+212% growth', kicker: 'Infographic', desc: 'Animate charts, data and visual storytelling', palette: ['#22c55e', '#3b82f6'] },
-  { id: 'presentations', register: 'presentation', title: 'Q3 in review', kicker: 'Presentation', desc: 'Smooth, engaging slides and motion decks', palette: ['#3b82f6', '#8a3ffc'] },
-  { id: 'text-motion', register: 'bold', title: 'Bring text to life', kicker: 'Visual Text', desc: 'Expressive kinetic titles, captions and type', palette: ['#ff6b6b', '#ff9f45'] },
-  { id: 'posters', register: 'poster', title: 'The drop is here', kicker: 'Animated Poster', desc: 'Turn static posters into motion visuals', palette: ['#ec4899', '#8a3ffc'] },
+  { id: 'infographics', useCase: 'saas_explainer', register: 'infographic', title: '+212% growth', kicker: 'Infographic', desc: 'Animate charts, data and visual storytelling', palette: ['#22c55e', '#3b82f6'] },
+  { id: 'presentations', useCase: 'pitch', register: 'presentation', title: 'Q3 in review', kicker: 'Presentation', desc: 'Smooth, engaging slides and motion decks', palette: ['#3b82f6', '#8a3ffc'] },
+  { id: 'text-motion', useCase: 'brand_manifesto', register: 'bold', title: 'Bring text to life', kicker: 'Visual Text', desc: 'Expressive kinetic titles, captions and type', palette: ['#ff6b6b', '#ff9f45'] },
+  { id: 'posters', useCase: 'physical_ad', register: 'poster', title: 'The drop is here', kicker: 'Animated Poster', desc: 'Turn static posters into motion visuals', palette: ['#ec4899', '#8a3ffc'] },
 ]
 
 export function Dashboard() {
   const nav = useNavigate()
   const projects = useStore((s) => s.projects)
   const [cat, setCat] = useState<string>('All')
+  const [studioOpen, setStudioOpen] = useState(false)
+  const [studioUseCase, setStudioUseCase] = useState<UseCase | undefined>(undefined)
   const filtered = cat === 'All' ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat)
+  const openStudio = (useCase?: UseCase) => { setStudioUseCase(useCase); setStudioOpen(true) }
 
   // Templates never auto-generate — selecting one opens the Assist config with
   // the template's settings prefilled, so the user can tweak before composing.
@@ -129,11 +134,6 @@ export function Dashboard() {
         }
         .tpl-tile:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,.45); }
         .tpl-tile-art { width: 100%; display: block; }
-        .tpl-new {
-          position: absolute; top: 10px; left: 10px; z-index: 3;
-          background: var(--accent); color: #fff; font-size: 10.5px; font-weight: 700;
-          letter-spacing: .04em; text-transform: uppercase; padding: 3px 8px; border-radius: 9999px;
-        }
         .tpl-tile-overlay {
           position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column;
           justify-content: flex-end; gap: 10px; padding: 14px;
@@ -163,7 +163,7 @@ export function Dashboard() {
         {/* Flow entry cards — same size, each previews its register's motion */}
         <div className="vm-flow-row fade-up" style={{ animationDelay: '50ms' }}>
           {VM_CARDS.map((c) => (
-            <button key={c.id} className="vm-flow-card" onClick={() => nav(`/studio/create/${c.id}`)}>
+            <button key={c.id} className="vm-flow-card" onClick={() => openStudio(c.useCase)}>
               <div className="vm-flow-art">
                 <TemplatePreview register={c.register} palette={c.palette} title={c.title} kicker={c.kicker} ratio={4 / 5} />
               </div>
@@ -174,7 +174,7 @@ export function Dashboard() {
             </button>
           ))}
           {/* From scratch */}
-          <button className="vm-flow-card" onClick={() => nav('/studio/create/create-new')}>
+          <button className="vm-flow-card" onClick={() => openStudio(undefined)}>
             <div className="vm-flow-art vm-flow-scratch">
               <div className="vm-flow-plus"><Icon name="plus" size={20} /></div>
             </div>
@@ -212,6 +212,8 @@ export function Dashboard() {
           </div>
         </div>
       </div>
+
+      <StudioModal open={studioOpen} onClose={() => setStudioOpen(false)} initialUseCase={studioUseCase} />
     </div>
   )
 }

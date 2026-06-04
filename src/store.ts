@@ -8,7 +8,10 @@ import type {
   TimelineClip,
   SceneElement,
   NarrationLine,
+  SceneSeed,
+  SceneKind,
 } from './types'
+import type { GenSpec, VideoPlan } from './spec'
 import type { VibeTheme } from './data'
 import { generateStoryboard, buildEditorState, uid } from './data'
 
@@ -55,6 +58,12 @@ interface Store {
   history: Record<string, { past: EditorState[]; future: EditorState[] }>
 
   createProject: (name: string, config: VideoProjectConfig) => VideoProject
+  // ── Storyboard-Grid engine ──
+  createGridProject: (name: string, spec: GenSpec) => VideoProject
+  setSpec: (id: string, spec: GenSpec) => void
+  setGridResult: (id: string, gridImageUrl: string, frameImages?: { frameId: string; url: string }[]) => void
+  setVideoPlan: (id: string, plan: VideoPlan) => void
+  setGeneratedVideo: (id: string, url: string) => void
   getProject: (id: string) => VideoProject | undefined
   renameProject: (id: string, name: string) => void
   deleteProject: (id: string) => void
@@ -131,6 +140,70 @@ export const useStore = create<Store>((set, get) => ({
     set({ projects })
     return project
   },
+
+  createGridProject: (name, spec) => {
+    const now = Date.now()
+    const config = configFromSpec(spec)
+    const frames = framesFromSpec(spec)
+    const project: VideoProject = {
+      id: uid('proj'),
+      name,
+      status: 'composing',
+      engine: 'grid',
+      spec,
+      config,
+      frames,
+      createdAt: now,
+      updatedAt: now,
+      thumbnail: frames[0]?.seed,
+    }
+    const projects = [project, ...get().projects]
+    persist(projects)
+    set({ projects })
+    return project
+  },
+
+  setSpec: (id, spec) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id ? { ...p, spec, config: configFromSpec(spec), frames: framesFromSpec(spec, p.videoPlan), updatedAt: Date.now() } : p,
+      )
+      persist(projects)
+      // spec changed → rebuild the editor from the new frames next time it's opened
+      const editors = { ...s.editors }; delete editors[id]
+      return { projects, editors }
+    }),
+
+  setGridResult: (id, gridImageUrl, frameImages) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id ? { ...p, gridImageUrl, frameImages: frameImages ?? p.frameImages, updatedAt: Date.now() } : p,
+      )
+      persist(projects)
+      return { projects }
+    }),
+
+  setVideoPlan: (id, plan) =>
+    set((s) => {
+      const projects = s.projects.map((p) => {
+        if (p.id !== id) return p
+        // re-time the editor frames to the plan's clip segments so the timeline matches
+        const frames = p.spec ? framesFromSpec(p.spec, plan) : p.frames
+        return { ...p, videoPlan: plan, frames, updatedAt: Date.now() }
+      })
+      persist(projects)
+      const editors = { ...s.editors }; delete editors[id]
+      return { projects, editors }
+    }),
+
+  setGeneratedVideo: (id, url) =>
+    set((s) => {
+      const projects = s.projects.map((p) =>
+        p.id === id ? { ...p, generatedVideoUrl: url, status: 'complete' as const, updatedAt: Date.now() } : p,
+      )
+      persist(projects)
+      return { projects }
+    }),
 
   getProject: (id) => get().projects.find((p) => p.id === id),
 
@@ -474,6 +547,66 @@ export const useStore = create<Store>((set, get) => ({
 
 function reindex(frames: StoryboardFrame[]): StoryboardFrame[] {
   return frames.map((f, i) => ({ ...f, index: i }))
+}
+
+// ── Storyboard-Grid → editor adapters ───────────────────────────────────────
+// A grid project drives the SAME editor/timeline as legacy projects, so we map
+// its GenSpec into the VideoProjectConfig + StoryboardFrame[] the editor expects.
+function configFromSpec(spec: GenSpec): VideoProjectConfig {
+  const c = spec.brand.colors
+  const palette = [c.secondary, c.accent || c.primary, c.primary].filter(Boolean) as string[]
+  return {
+    prompt: spec.style.treatment || spec.useCase,
+    model: 'standard',
+    aspect: spec.canvas.aspect,
+    durationSec: spec.canvas.durationSec,
+    fps: 30,
+    quality: 'high',
+    transition: 'fade',
+    palette,
+    templateId: spec.style.templateId,
+    assetIds: spec.product.assetIds,
+    assets: spec.product.images.map((im) => ({ id: im.id, name: im.name, type: 'image/*', dataUrl: im.dataUrl })),
+    flow: `grid:${spec.useCase}`,
+  }
+}
+
+// Even-split timing unless a video plan is present, in which case the frames
+// inherit the plan's clip-segment timing so the timeline reads as the real cut.
+function framesFromSpec(spec: GenSpec, plan?: VideoPlan): StoryboardFrame[] {
+  const palette = configFromSpec(spec).palette
+  const n = spec.frames.length || 1
+  const seg = spec.canvas.durationSec / n
+  // build a per-frame [start,end] map from the plan if available
+  const timing = new Map<string, { start: number; end: number }>()
+  if (plan) {
+    for (const clip of plan.clips) {
+      const end = clip.start + clip.duration
+      // interpolate clips span two frames; attribute the window to both
+      clip.frameIds.forEach((fid) => {
+        const cur = timing.get(fid)
+        timing.set(fid, { start: cur ? Math.min(cur.start, clip.start) : clip.start, end: cur ? Math.max(cur.end, end) : end })
+      })
+    }
+  }
+  return spec.frames.map((f, i) => {
+    const t = timing.get(f.id) || { start: +(i * seg).toFixed(2), end: +((i + 1) * seg).toFixed(2) }
+    const kind: SceneKind = i === 0 ? 'hero' : i === n - 1 ? 'cta' : 'cards'
+    const seed: SceneSeed = { kind, palette, headline: f.copyText, lines: [f.role], accent: palette[0] }
+    return {
+      id: f.id,
+      index: i,
+      start: t.start,
+      end: t.end,
+      kind,
+      title: f.role,
+      copy: [f.copyText].filter(Boolean),
+      notes: f.sceneDesc,
+      transition: 'fade',
+      assetIds: [],
+      seed,
+    }
+  })
 }
 
 function pushHistory(

@@ -142,7 +142,13 @@ export function renderPlugin() {
           const file = path.join(WORK, rel)
           if (fs.existsSync(file) && fs.statSync(file).isFile()) {
             const stat = fs.statSync(file)
-            const mime = file.endsWith('.mp3') ? 'audio/mpeg' : file.endsWith('.wav') ? 'audio/wav' : 'video/mp4'
+            const mime = file.endsWith('.mp3') ? 'audio/mpeg'
+              : file.endsWith('.wav') ? 'audio/wav'
+              : file.endsWith('.svg') ? 'image/svg+xml'
+              : file.endsWith('.png') ? 'image/png'
+              : file.endsWith('.jpg') || file.endsWith('.jpeg') ? 'image/jpeg'
+              : file.endsWith('.webp') ? 'image/webp'
+              : 'video/mp4'
             res.setHeader('content-type', mime)
             res.setHeader('accept-ranges', 'bytes')
             const range = req.headers.range

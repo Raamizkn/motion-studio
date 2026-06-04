@@ -18,6 +18,8 @@ import { editorCommandAI, editCompositionAI, generateNarrationAI } from '../ai'
 import type { EditCall } from '../ai'
 import { meshBg } from '../sceneModel'
 import { LiveCanvas } from '../components/LiveCanvas'
+import { TemplatePreview } from '../components/cards'
+import { stubFrameVisual } from '../engine/stub'
 
 export function VideoEditor() {
   const { id = '' } = useParams()
@@ -31,6 +33,9 @@ export function VideoEditor() {
   // One brain: if Claude composed this project, the editor previews/edits the
   // real composition (seekable iframe) — never the legacy scene-graph.
   const useLive = !!project?.composedHtml
+  // Storyboard-Grid projects land here playing the generated MP4 through the
+  // existing transport — no live composition, no scene-graph editing.
+  const useGrid = project?.engine === 'grid'
 
   const [reloadKey, setReloadKey] = useState(0)
   const [selectedEid, setSelectedEid] = useState<string | null>(null)
@@ -101,11 +106,16 @@ export function VideoEditor() {
     return () => stop()
   }, [rendering, id, project, setStatus])
 
-  // try to load an already-rendered video on mount
+  // try to load an already-rendered video on mount (hyperframes path only)
   useEffect(() => {
-    if (rendering) return
+    if (rendering || useGrid) return
     getRenderStatus(id).then((s) => { if (s.status === 'complete' && s.url) setVideoUrl(s.url) })
-  }, [id, rendering])
+  }, [id, rendering, useGrid])
+
+  // grid projects: the generated MP4 lives on the project itself
+  useEffect(() => {
+    if (useGrid && project?.generatedVideoUrl) setVideoUrl(project.generatedVideoUrl)
+  }, [useGrid, project?.generatedVideoUrl])
 
   const duration = editor?.duration || project?.config.durationSec || 30
 
@@ -572,7 +582,9 @@ export function VideoEditor() {
 
         <div className="ed-stage">
           <div className="ed-stage-card">
-            {useLive ? (
+            {useGrid ? (
+              <GridStage videoRef={videoRef} videoUrl={videoUrl} aspect={aspect} />
+            ) : useLive ? (
               <LiveCanvas
                 html={project.composedHtml!}
                 aspect={aspect}
@@ -598,7 +610,7 @@ export function VideoEditor() {
                 onText={textItem}
               />
             )}
-            {!useLive && sel && (
+            {!useLive && !useGrid && sel && (
               <div className="ed-toolbar-float">
                 <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />
               </div>
@@ -650,9 +662,11 @@ export function VideoEditor() {
       {rightOpen ? (
         <div className="ed-drawer-col">
           <div className="ed-drawer">
-            {useLive
-              ? <CompositionLayers els={compEls} selectedEid={selectedEid} onSelect={setSelectedEid} onCollapse={() => setRightOpen(false)} />
-              : <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />}
+            {useGrid
+              ? <GridFrames project={project} onCollapse={() => setRightOpen(false)} />
+              : useLive
+                ? <CompositionLayers els={compEls} selectedEid={selectedEid} onSelect={setSelectedEid} onCollapse={() => setRightOpen(false)} />
+                : <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />}
           </div>
         </div>
       ) : (
@@ -723,6 +737,54 @@ function CompositionLayers({ els, selectedEid, onSelect, onCollapse }: { els: im
         {texts.map((e) => <Row key={e.eid} e={e} />)}
         {media.length > 0 && <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.08em', color: 'var(--text-4)', margin: '14px 6px 8px' }}>MEDIA</div>}
         {media.map((e) => <Row key={e.eid} e={e} />)}
+      </div>
+    </div>
+  )
+}
+
+// ── Grid stage: play the generated MP4 through the shared transport ──────────
+function GridStage({ videoRef, videoUrl, aspect }: { videoRef: React.RefObject<HTMLVideoElement>; videoUrl: string | null; aspect: AspectRatio }) {
+  const ratio = ASPECT_RATIO[aspect]
+  const { outerRef, box } = useFit(ratio)
+  return (
+    <div ref={outerRef} style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
+      <div style={{ position: 'relative', width: box.w || '100%', height: box.h || undefined, aspectRatio: box.w ? undefined : String(ratio), borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
+        {videoUrl ? (
+          <video ref={videoRef} src={videoUrl} preload="auto" playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#0a0a0c' }} />
+        ) : (
+          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Preparing video…</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Grid frames drawer: the storyboard frames the model returned ─────────────
+function GridFrames({ project, onCollapse }: { project: import('../types').VideoProject; onCollapse: () => void }) {
+  const spec = project.spec
+  const frames = spec?.frames || []
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 15, color: 'var(--text)' }}>
+        Frames
+        <button onClick={onCollapse} aria-label="Collapse" style={{ width: 28, height: 28, borderRadius: 999, border: 'none', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="chevRight" size={16} /></button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {frames.length === 0 && <div style={{ color: 'var(--text-3)', fontSize: 12.5, textAlign: 'center', marginTop: 24 }}>No frames.</div>}
+        {spec && frames.map((f, i) => {
+          const vis = stubFrameVisual(f, spec.brand, spec, 0, 0)
+          return (
+            <div key={f.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ width: 72, flex: 'none', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <TemplatePreview register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={16 / 9} />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {f.role}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.copyText || '—'}</div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
