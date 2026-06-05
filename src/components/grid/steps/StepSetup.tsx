@@ -100,14 +100,6 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
   return (
     <div style={{ height: '100%', display: 'flex', gap: 28, minHeight: 0 }}>
       <style>{`
-        /* animated theme-motif keyframes */
-        @keyframes tmf-tw { 0%,100% { opacity: .35; transform: scale(.8) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(20deg); } }
-        @keyframes tmf-drift { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        @keyframes tmf-build { 0% { width: 8px; } 50% { width: 56px; } 100% { width: 8px; } }
-        @keyframes tmf-flip { 0%,49% { opacity: 0; } 50%,100% { opacity: 1; } }
-        @keyframes tmf-pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-        @keyframes tmf-rise { 0%,100% { transform: translateY(6px); opacity: .85; } 50% { transform: translateY(0); opacity: 1; } }
-
         .st-h { font-family: var(--font-display); font-size: 14px; font-weight: 650; color: var(--text); }
         .st-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
         .st-cardrow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
