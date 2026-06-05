@@ -5,7 +5,7 @@ import { useCaseDef } from '../../spec'
 import { stubVideoPlan, hashStr } from '../../engine/stub'
 import { startGridImage, startGridVideo, pollGrid, IMAGE_PHASES, VIDEO_PHASES } from '../../grid'
 import { useStore } from '../../store'
-import { Icon } from '../Icon'
+import { Icon, ImagineMark } from '../Icon'
 import { PhasedProgress } from './PhasedProgress'
 import { StepSetup } from './steps/StepSetup'
 import { StepStoryboard } from './steps/StepGrid'
@@ -127,10 +127,12 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
   }
 
   const busy = phase !== 'idle'
+  // setup is "ready" once the essentials are chosen: a prompt and a theme.
+  const setupReady = !!draft.product.description?.trim() && !!draft.brandThemeId
   const footer = (() => {
     if (screen === 'done' || busy) return null
-    if (screen === 'setup') return { primary: 'Generate storyboard', icon: 'sparkle', onPrimary: handleGenerateGrid, back: false as const }
-    if (screen === 'storyboard') return { primary: 'Generate video', icon: 'film', onPrimary: handleGenerateVideo, back: true as const }
+    if (screen === 'setup') return { primary: 'Generate storyboard', onPrimary: handleGenerateGrid, back: false as const, disabled: !setupReady, hint: 'Add a prompt and pick a theme to continue' }
+    if (screen === 'storyboard') return { primary: 'Generate video', onPrimary: handleGenerateVideo, back: true as const, disabled: false, hint: '' }
     return null
   })()
 
@@ -145,7 +147,7 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
       >
         {/* header */}
         <header style={{ flex: 'none', height: 60, display: 'flex', alignItems: 'center', gap: 12, padding: '0 22px', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--accent-grad)', display: 'grid', placeItems: 'center', color: '#fff' }}><Icon name="sparkle" size={16} /></span>
+          <span style={{ width: 30, height: 30, borderRadius: 9, background: 'var(--accent-grad)', display: 'grid', placeItems: 'center', color: '#fff' }}><ImagineMark size={17} /></span>
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--text)' }}>Vibe Motion Studio</span>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-4)' }}>Stubbed preview · models wire in later</span>
           <button onClick={handleClose} aria-label="Close" style={{ marginLeft: 14, width: 34, height: 34, borderRadius: 999, border: 'none', background: 'var(--surface-3)', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="close" size={16} /></button>
@@ -184,20 +186,25 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
         {/* footer */}
         {footer && (
           <footer style={{ flex: 'none', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderTop: '1px solid var(--border)' }}>
-            <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               {footer.back && (
-                <button onClick={() => setScreen('setup')} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '11px 16px', borderRadius: 11, border: '1px solid var(--border-strong)', background: 'transparent', color: 'var(--text-2)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>
-                  <Icon name="arrowLeft" size={15} /> Back
+                <button onClick={() => setScreen('setup')} style={{ padding: '11px 18px', borderRadius: 12, border: 'none', background: 'var(--surface-3)', color: 'var(--text)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-display)' }}>
+                  Back
                 </button>
               )}
             </div>
-            <button
-              onClick={footer.onPrimary}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '12px 24px', borderRadius: 12, border: 'none', background: 'var(--accent-grad)', color: '#fff', fontSize: 14.5, fontWeight: 650, cursor: 'pointer', boxShadow: '0 4px 18px var(--accent-glow)' }}
-            >
-              <Icon name={footer.icon as any} size={16} />
-              {footer.primary}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {footer.disabled && footer.hint && (
+                <span style={{ fontSize: 12.5, color: 'var(--text-4)' }}>{footer.hint}</span>
+              )}
+              <button
+                onClick={footer.disabled ? undefined : footer.onPrimary}
+                disabled={footer.disabled}
+                style={{ padding: '12px 26px', borderRadius: 12, border: 'none', background: footer.disabled ? 'var(--surface-3)' : '#fff', color: footer.disabled ? 'var(--text-4)' : '#0a0a0c', fontSize: 14.5, fontWeight: 650, cursor: footer.disabled ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-display)', transition: 'background .14s, color .14s' }}
+              >
+                {footer.primary}
+              </button>
+            </div>
           </footer>
         )}
       </div>

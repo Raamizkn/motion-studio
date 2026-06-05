@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Icon } from './Icon'
+import { Icon, ImagineMark } from './Icon'
 
 const NAV_ITEMS = [
   { icon: 'home',      label: 'Home',    to: '/home' },
@@ -175,7 +175,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="vm-logo">
         <div className="vm-logo-inner">
-          <Icon name="sparkle" size={16} style={{ color: '#fff' }} />
+          <ImagineMark size={18} style={{ color: '#fff' }} />
         </div>
       </div>
 

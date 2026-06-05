@@ -3,6 +3,7 @@ import { useStore } from '../store'
 import { BUILTIN_THEMES } from '../data'
 import type { VibeTheme } from '../data'
 import { Icon } from './Icon'
+import { importThemeFromUrlStub } from './grid/wizard'
 
 /* ── Theme palette strips (4 swatches across the bottom of a card) ─────────── */
 function PaletteStrips({ theme }: { theme: VibeTheme }) {
@@ -13,6 +14,45 @@ function PaletteStrips({ theme }: { theme: VibeTheme }) {
       {strips.map((s, i) => (
         <div key={i} style={{ flex: 1, height: 6, background: s }} />
       ))}
+    </div>
+  )
+}
+
+/* ── Live theme preview — mirrors the colors & fonts as the user edits ─────── */
+function ThemeVisualizer({
+  logo, name, primary, secondary, tertiary, accent, titleFont, bodyFont,
+}: {
+  logo: string; name: string; primary: string; secondary: string
+  tertiary: string; accent: string; titleFont: string; bodyFont: string
+}) {
+  const waves = [primary, secondary, tertiary || accent || secondary, accent || secondary]
+  const paths = [
+    'M0,70 C60,40 130,92 268,55 L268,250 L0,250 Z',
+    'M0,120 C70,95 155,142 268,108 L268,250 L0,250 Z',
+    'M0,165 C80,140 165,188 268,150 L268,250 L0,250 Z',
+    'M0,206 C90,186 175,226 268,200 L268,250 L0,250 Z',
+  ]
+  const chips = [primary, secondary, tertiary, accent].filter(Boolean)
+  return (
+    <div className="tm-vis" style={{ background: '#0c0c0f' }}>
+      <span className="tm-vis-badge">Preview</span>
+      <span className="tm-vis-logo" style={{ background: logo ? 'rgba(255,255,255,.1)' : secondary }}>
+        {logo ? <img src={logo} alt="" /> : (name.trim()[0] || 'T').toUpperCase()}
+      </span>
+      <div className="tm-vis-copy">
+        <div className="tm-vis-title" style={{ fontFamily: `'${titleFont}', var(--font-display)`, color: '#fff' }}>
+          {name.trim() || 'Theme Name'}
+        </div>
+        <div className="tm-vis-sub" style={{ fontFamily: `'${bodyFont}', var(--font)`, color: secondary }}>
+          This is how your titles &amp; copy read across the storyboard.
+        </div>
+      </div>
+      <svg className="tm-vis-wave" viewBox="0 0 268 250" preserveAspectRatio="none" aria-hidden>
+        {paths.map((d, i) => <path key={i} d={d} fill={waves[i]} />)}
+      </svg>
+      <div className="tm-vis-chips">
+        {chips.map((c, i) => <span key={i} className="tm-vis-chip" style={{ background: c }} />)}
+      </div>
     </div>
   )
 }
@@ -145,6 +185,18 @@ export function ThemeModal({ onClose, onSaved }: { onClose: () => void; onSaved:
   const [accent, setAccent] = useState('')
   const [titleFont, setTitleFont] = useState('Helvetica Neue')
   const [bodyFont, setBodyFont] = useState('Helvetica Neue')
+  const [brandUrl, setBrandUrl] = useState('')
+
+  // Stub — prefill the form from a brand URL (deterministic palette/fonts).
+  const importFromUrl = () => {
+    if (!brandUrl.trim()) return
+    const s = importThemeFromUrlStub(brandUrl.trim())
+    setName(s.name)
+    setSecondary(s.colors.secondary)
+    if (s.colors.accent) setAccent(s.colors.accent)
+    setTitleFont(s.titleFont)
+    setBodyFont(s.bodyFont)
+  }
 
   const ingestLogo = (f?: File) => {
     if (!f) return
@@ -175,17 +227,33 @@ export function ThemeModal({ onClose, onSaved }: { onClose: () => void; onSaved:
           display: grid; place-items: center;
         }
         .tm-card {
-          width: 700px; max-width: 92vw;
+          width: 840px; max-width: 94vw; max-height: 92vh;
           background: var(--bg-elev);
           border: 1px solid var(--border-strong);
           border-radius: var(--r-xl);
           box-shadow: var(--shadow-lg);
-          padding: 28px;
-          display: flex; flex-direction: column; gap: 18px;
+          padding: 24px;
+          display: flex; flex-direction: column; gap: 14px;
           font-family: var(--font-display);
         }
+        .tm-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
         .tm-title { font-size: 26px; font-weight: 600; color: var(--text); letter-spacing: -.01em; }
-        .tm-sub { font-size: 13px; color: var(--text-3); margin-top: -10px; }
+        .tm-sub { font-size: 13px; color: var(--text-3); margin-top: 2px; }
+        .tm-x { width: 32px; height: 32px; flex: none; border-radius: 999px; border: none; background: var(--surface-3); color: var(--text-2); cursor: pointer; display: grid; place-items: center; }
+        .tm-body { display: flex; gap: 18px; min-height: 0; }
+        .tm-form { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; padding-right: 2px; }
+
+        /* Live theme visualizer */
+        .tm-vis { position: relative; width: 268px; flex: none; align-self: stretch; border-radius: 16px; border: 1px solid var(--border); overflow: hidden; display: flex; flex-direction: column; min-height: 420px; }
+        .tm-vis-badge { position: absolute; top: 14px; right: 14px; z-index: 3; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: rgba(255,255,255,.12); color: rgba(255,255,255,.85); backdrop-filter: blur(4px); }
+        .tm-vis-logo { position: absolute; top: 14px; left: 14px; z-index: 3; width: 34px; height: 34px; border-radius: 9px; overflow: hidden; display: grid; place-items: center; background: rgba(255,255,255,.1); color: #fff; font-size: 16px; font-weight: 700; }
+        .tm-vis-logo img { width: 100%; height: 100%; object-fit: contain; }
+        .tm-vis-copy { position: relative; z-index: 3; padding: 64px 18px 0; }
+        .tm-vis-title { font-size: 24px; font-weight: 600; line-height: 1.15; }
+        .tm-vis-sub { font-size: 14px; line-height: 1.4; margin-top: 8px; }
+        .tm-vis-wave { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 58%; z-index: 1; }
+        .tm-vis-chips { position: absolute; left: 18px; bottom: 16px; z-index: 3; display: flex; gap: 6px; }
+        .tm-vis-chip { width: 22px; height: 22px; border-radius: 7px; border: 1px solid rgba(255,255,255,.25); }
         .tm-label { font-size: 13px; color: var(--text-2); margin-bottom: 6px; display: block; }
         .tm-drop {
           position: relative;
@@ -212,87 +280,116 @@ export function ThemeModal({ onClose, onSaved }: { onClose: () => void; onSaved:
         .tm-color input[type=text] { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 14px; font-family: var(--font-mono); }
         .tm-add { color: var(--text-3); display: flex; align-items: center; gap: 6px; font-size: 14px; }
         .tm-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
-        .tm-btn { height: 40px; padding: 0 18px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; font-family: var(--font-display); }
-        .tm-btn.ghost { background: var(--surface); color: var(--text-2); }
-        .tm-btn.primary { background: var(--accent); color: #fff; }
+        .tm-btn { height: 40px; padding: 0 20px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; font-family: var(--font-display); transition: background .14s, color .14s, opacity .14s; }
+        .tm-btn.ghost { background: var(--surface-3); color: var(--text); }
+        .tm-btn.primary { background: #fff; color: #0a0a0c; }
+        .tm-btn.primary:disabled { background: var(--surface-3); color: var(--text-4); cursor: not-allowed; }
         .tm-logo-preview { width: 56px; height: 56px; border-radius: 12px; object-fit: contain; background: var(--surface); margin: 0 auto 8px; display: block; }
       `}</style>
 
       <div className="tm-card" onClick={(e) => e.stopPropagation()}>
-        <div>
-          <div className="tm-title">Create New Theme</div>
-        </div>
-        <div className="tm-sub">Upload your logo, colors &amp; fonts to create your theme.</div>
-
-        {/* Logo */}
-        <div>
-          <label className="tm-label">Upload Logo</label>
-          <div className="tm-drop" onClick={() => fileRef.current?.click()}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => { e.preventDefault(); ingestLogo(e.dataTransfer.files?.[0]) }}>
-            <span className="tm-optional">Optional</span>
-            {logo
-              ? <img src={logo} alt="logo" className="tm-logo-preview" />
-              : <div style={{ fontSize: 22, marginBottom: 6 }}><Icon name="plus" size={22} /></div>}
-            <div style={{ fontSize: 14, color: 'var(--text-2)' }}>{logo ? 'Replace image' : 'Upload image or drag & drop'}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>JPG, PNG, WEBP file, up to 50MB</div>
-            <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => ingestLogo(e.target.files?.[0])} />
+        <div className="tm-head">
+          <div>
+            <div className="tm-title">Create New Theme</div>
+            <div className="tm-sub">Paste a brand URL to autofill, or set your logo, colors &amp; fonts manually.</div>
           </div>
+          <button className="tm-x" onClick={onClose} aria-label="Close"><Icon name="close" size={16} /></button>
         </div>
 
-        {/* Name */}
-        <div>
-          <label className="tm-label">Name</label>
-          <input className="tm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Theme Name" />
-        </div>
+        <div className="tm-body">
+          {/* Live preview — reflects colors & fonts as you edit */}
+          <ThemeVisualizer
+            logo={logo} name={name} primary={primary} secondary={secondary}
+            tertiary={tertiary} accent={accent} titleFont={titleFont} bodyFont={bodyFont}
+          />
 
-        {/* Colors */}
-        <div className="tm-row">
-          <div className="tm-col">
-            <label className="tm-label">Primary Color</label>
-            <div className="tm-color">
-              <input className="tm-swatch" type="color" value={primary} onChange={(e) => setPrimary(e.target.value)} style={{ background: primary }} />
-              <input type="text" value={primary} onChange={(e) => setPrimary(e.target.value)} />
+          <div className="tm-form">
+            {/* Import from URL */}
+            <div>
+              <label className="tm-label">Import from URL</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  className="tm-input"
+                  placeholder="www.your-brand.com"
+                  value={brandUrl}
+                  onChange={(e) => setBrandUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') importFromUrl() }}
+                />
+                <button className="tm-btn primary" onClick={importFromUrl} disabled={!brandUrl.trim()}>Autofill</button>
+              </div>
+            </div>
+
+            {/* Logo */}
+            <div>
+              <label className="tm-label">Upload Logo</label>
+              <div className="tm-drop" onClick={() => fileRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => { e.preventDefault(); ingestLogo(e.dataTransfer.files?.[0]) }}>
+                <span className="tm-optional">Optional</span>
+                {logo
+                  ? <img src={logo} alt="logo" className="tm-logo-preview" />
+                  : <div style={{ fontSize: 22, marginBottom: 6 }}><Icon name="plus" size={22} /></div>}
+                <div style={{ fontSize: 14, color: 'var(--text-2)' }}>{logo ? 'Replace image' : 'Upload image or drag & drop'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-4)', marginTop: 2 }}>JPG, PNG, WEBP file, up to 50MB</div>
+                <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => ingestLogo(e.target.files?.[0])} />
+              </div>
+            </div>
+
+            {/* Name */}
+            <div>
+              <label className="tm-label">Name</label>
+              <input className="tm-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Theme Name" />
+            </div>
+
+            {/* Colors */}
+            <div className="tm-row">
+              <div className="tm-col">
+                <label className="tm-label">Primary Color</label>
+                <div className="tm-color">
+                  <input className="tm-swatch" type="color" value={primary} onChange={(e) => setPrimary(e.target.value)} style={{ background: primary }} />
+                  <input type="text" value={primary} onChange={(e) => setPrimary(e.target.value)} />
+                </div>
+              </div>
+              <div className="tm-col">
+                <label className="tm-label">Secondary Color</label>
+                <div className="tm-color">
+                  <input className="tm-swatch" type="color" value={secondary} onChange={(e) => setSecondary(e.target.value)} style={{ background: secondary }} />
+                  <input type="text" value={secondary} onChange={(e) => setSecondary(e.target.value)} />
+                </div>
+              </div>
+            </div>
+            <div className="tm-row">
+              <div className="tm-col">
+                <label className="tm-label">Tertiary Color</label>
+                {tertiary
+                  ? <div className="tm-color"><input className="tm-swatch" type="color" value={tertiary} onChange={(e) => setTertiary(e.target.value)} style={{ background: tertiary }} /><input type="text" value={tertiary} onChange={(e) => setTertiary(e.target.value)} /></div>
+                  : <button className="tm-color tm-add" onClick={() => setTertiary('#8A8575')}><Icon name="plus" size={14} /> Add Color</button>}
+              </div>
+              <div className="tm-col">
+                <label className="tm-label">Accent Color</label>
+                {accent
+                  ? <div className="tm-color"><input className="tm-swatch" type="color" value={accent} onChange={(e) => setAccent(e.target.value)} style={{ background: accent }} /><input type="text" value={accent} onChange={(e) => setAccent(e.target.value)} /></div>
+                  : <button className="tm-color tm-add" onClick={() => setAccent('#E8590C')}><Icon name="plus" size={14} /> Add Color</button>}
+              </div>
+            </div>
+
+            {/* Fonts */}
+            <div className="tm-row">
+              <div className="tm-col">
+                <label className="tm-label">Title Font</label>
+                <input className="tm-input" value={titleFont} onChange={(e) => setTitleFont(e.target.value)} placeholder="Helvetica Neue" />
+              </div>
+              <div className="tm-col">
+                <label className="tm-label">Body Font</label>
+                <input className="tm-input" value={bodyFont} onChange={(e) => setBodyFont(e.target.value)} placeholder="Helvetica Neue" />
+              </div>
+            </div>
+
+            <div className="tm-footer">
+              <button className="tm-btn ghost" onClick={onClose}>Cancel</button>
+              <button className="tm-btn primary" onClick={save}>Save</button>
             </div>
           </div>
-          <div className="tm-col">
-            <label className="tm-label">Secondary Color</label>
-            <div className="tm-color">
-              <input className="tm-swatch" type="color" value={secondary} onChange={(e) => setSecondary(e.target.value)} style={{ background: secondary }} />
-              <input type="text" value={secondary} onChange={(e) => setSecondary(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <div className="tm-row">
-          <div className="tm-col">
-            <label className="tm-label">Tertiary Color</label>
-            {tertiary
-              ? <div className="tm-color"><input className="tm-swatch" type="color" value={tertiary} onChange={(e) => setTertiary(e.target.value)} style={{ background: tertiary }} /><input type="text" value={tertiary} onChange={(e) => setTertiary(e.target.value)} /></div>
-              : <button className="tm-color tm-add" onClick={() => setTertiary('#8A8575')}><Icon name="plus" size={14} /> Add Color</button>}
-          </div>
-          <div className="tm-col">
-            <label className="tm-label">Accent Color</label>
-            {accent
-              ? <div className="tm-color"><input className="tm-swatch" type="color" value={accent} onChange={(e) => setAccent(e.target.value)} style={{ background: accent }} /><input type="text" value={accent} onChange={(e) => setAccent(e.target.value)} /></div>
-              : <button className="tm-color tm-add" onClick={() => setAccent('#E8590C')}><Icon name="plus" size={14} /> Add Color</button>}
-          </div>
-        </div>
-
-        {/* Fonts */}
-        <div className="tm-row">
-          <div className="tm-col">
-            <label className="tm-label">Title Font</label>
-            <input className="tm-input" value={titleFont} onChange={(e) => setTitleFont(e.target.value)} placeholder="Helvetica Neue" />
-          </div>
-          <div className="tm-col">
-            <label className="tm-label">Body Font</label>
-            <input className="tm-input" value={bodyFont} onChange={(e) => setBodyFont(e.target.value)} placeholder="Helvetica Neue" />
-          </div>
-        </div>
-
-        <div className="tm-footer">
-          <button className="tm-btn ghost" onClick={onClose}>Cancel</button>
-          <button className="tm-btn primary" onClick={save}>Save</button>
         </div>
       </div>
     </div>

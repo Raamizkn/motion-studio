@@ -54,6 +54,15 @@ const P: Record<string, string> = {
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
 }
 
+// ImagineArt brand mark — filled glyph (not part of the stroke set).
+export function ImagineMark({ size = 18, className, style }: { size?: number; className?: string; style?: CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} style={style} aria-hidden>
+      <path d="M21.8308 9.75073C19.3137 9.15943 16.4601 8.97391 17.1561 4.37102L22.2484 5.7971L24 6.21449C23.9072 2.77102 21.0885 0 17.6201 0H6.34518C2.84205 0 0 2.84058 0 6.34203V11.6754C0 13.4609 0.962917 13.9594 2.16929 14.2493C4.68644 14.8406 7.53988 15.0261 6.84389 19.629L1.75158 18.2029L0 17.7855C0.0695986 21.229 2.87685 24 6.34518 24H17.655C21.1581 24 24 21.1594 24 17.658V12.3246C24 10.5391 23.0372 10.0406 21.8308 9.75073ZM19.2673 12C15.7874 13.1594 13.1311 15.8957 12.0059 19.258C10.8923 15.9073 8.23594 13.1594 4.74441 12C8.22434 10.8406 10.8807 8.09276 12.0059 4.74203C13.1195 8.09276 15.7758 10.8406 19.2673 12Z" />
+    </svg>
+  )
+}
+
 interface IconProps {
   name: keyof typeof P | string
   size?: number

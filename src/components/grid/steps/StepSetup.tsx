@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { Draft } from '../wizard'
-import { ingestProductFiles, themeToBrand, registerForBrand, importThemeFromUrlStub, importProductFromUrlStub } from '../wizard'
+import { ingestProductFiles, themeToBrand, registerForBrand, importProductFromUrlStub } from '../wizard'
 import type { UseCase, GridAspect } from '../../../spec'
 import { USE_CASES } from '../../../spec'
 import { computeGrid } from '../../../engine/gridGeometry'
@@ -26,13 +26,13 @@ const FRAME_COUNTS = [4, 6, 9, 12]
 
 export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update: (patch: Partial<Draft>) => void; onPickStyle: (u: UseCase) => void }) {
   const userThemes = useStore((s) => s.userThemes)
-  const addTheme = useStore((s) => s.addTheme)
   const allThemes = [...userThemes, ...BUILTIN_THEMES]
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [busy, setBusy] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [prodOpen, setProdOpen] = useState(false)
-  const [brandUrl, setBrandUrl] = useState('')
+  const [styleAllOpen, setStyleAllOpen] = useState(false)
+  const [themeAllOpen, setThemeAllOpen] = useState(false)
   const [productUrl, setProductUrl] = useState('')
 
   const images = draft.product.images
@@ -47,13 +47,6 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
     const next = images.filter((i) => i.id !== id)
     update({ product: { ...draft.product, images: next, assetIds: next.map((i) => i.id) } })
   }
-  const importBrand = () => {
-    if (!brandUrl.trim()) return
-    const stub = importThemeFromUrlStub(brandUrl.trim())
-    const t = addTheme({ ...stub, register: 'imported / custom brand', styleNotes: `Imported from ${brandUrl.trim()}` })
-    update({ brandThemeId: t.id, brand: themeToBrand(t) })
-    setBrandUrl('')
-  }
   const importProduct = () => {
     if (!productUrl.trim() || images.length >= 4) return
     const img = importProductFromUrlStub(productUrl.trim())
@@ -65,6 +58,44 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
   const pill = (active: boolean) => `st-pill${active ? ' sel' : ''}`
   // stacked-card transforms (front → back)
   const stackT = (depth: number) => depth === 0 ? 'translate(-50%,-50%) rotate(0deg)' : depth === 1 ? 'translate(-42%,-52%) rotate(8deg)' : 'translate(-58%,-48%) rotate(-8deg)'
+
+  // ── card renderers (shared between the row and the See-all gallery) ──
+  const StyleCard = (u: typeof USE_CASES[number], onPicked?: () => void) => {
+    const g = STYLE_GFX[u.id]
+    const sel = draft.useCase === u.id
+    return (
+      <button key={u.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => { onPickStyle(u.id); onPicked?.() }}>
+        {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
+        <TemplatePreview register={g.register} palette={g.palette} title={g.title} kicker={g.kicker} ratio={1.6} />
+        <div className="st-card-cap"><div className="st-card-name">{u.title}</div><div className="st-card-sub">{u.suggestedAspect} · {u.model}</div></div>
+      </button>
+    )
+  }
+  const CreateCard = () => (
+    <button key="create" className="st-card" onClick={() => setCreateOpen(true)} style={{ display: 'flex', flexDirection: 'column' }}>
+      <div style={{ aspectRatio: '1.6', display: 'grid', placeItems: 'center', background: 'var(--surface-2)' }}>
+        <span style={{ width: 30, height: 30, borderRadius: 999, border: '1px solid var(--border-strong)', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}><Icon name="plus" size={15} /></span>
+      </div>
+      <div className="st-card-cap"><div className="st-card-name">Create New</div><div className="st-card-sub">Custom kit</div></div>
+    </button>
+  )
+  const ThemeCard = (t: typeof allThemes[number], onPicked?: () => void) => {
+    const c = t.colors
+    const sel = draft.brandThemeId === t.id
+    return (
+      <button key={t.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => { update({ brandThemeId: t.id, brand: themeToBrand(t) }); onPicked?.() }}>
+        {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
+        <TemplatePreview register={registerForBrand(themeToBrand(t))} palette={[c.secondary, c.accent || c.primary, c.surface]} title={t.name} kicker={t.titleFont} ratio={1.6} />
+        <div className="st-card-cap"><div className="st-card-name">{t.name}</div><div className="st-card-sub">{t.titleFont}</div></div>
+      </button>
+    )
+  }
+  const SeeAll = ({ onClick }: { onClick: () => void }) => (
+    <button onClick={onClick} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-2)', background: 'none', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>See all <Icon name="arrowRight" size={12} /></button>
+  )
+
+  const styleOverflow = USE_CASES.length > 5
+  const themeOverflow = allThemes.length + 1 > 5 // +1 for Create New
 
   return (
     <div style={{ height: '100%', display: 'flex', gap: 28, minHeight: 0 }}>
@@ -120,8 +151,8 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
         .st-url-row { display: flex; gap: 6px; }
         .st-url-input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 9px; padding: 9px 11px; color: var(--text); font-size: 12.5px; font-family: var(--font); outline: none; }
         .st-url-input:focus { border-color: var(--accent); }
-        .st-url-btn { padding: 0 14px; border-radius: 9px; border: none; background: var(--accent); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-        .st-url-btn:disabled { opacity: .45; cursor: default; }
+        .st-url-btn { padding: 0 16px; border-radius: 9px; border: none; background: #fff; color: #0a0a0c; font-size: 12.5px; font-weight: 650; cursor: pointer; }
+        .st-url-btn:disabled { background: var(--surface-2); color: var(--text-4); cursor: default; }
       `}</style>
 
       {/* ── LEFT: prompt + style + theme ── */}
@@ -141,49 +172,24 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
 
         {/* Style */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <span className="st-h">Style</span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="st-h">Style</span>
+            {styleOverflow && <SeeAll onClick={() => setStyleAllOpen(true)} />}
+          </div>
           <div className="st-cardrow">
-            {USE_CASES.map((u) => {
-              const g = STYLE_GFX[u.id]
-              const sel = draft.useCase === u.id
-              return (
-                <button key={u.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => onPickStyle(u.id)}>
-                  {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
-                  <TemplatePreview register={g.register} palette={g.palette} title={g.title} kicker={g.kicker} ratio={1.6} />
-                  <div className="st-card-cap"><div className="st-card-name">{u.title}</div><div className="st-card-sub">{u.suggestedAspect} · {u.model}</div></div>
-                </button>
-              )
-            })}
+            {USE_CASES.slice(0, 5).map((u) => StyleCard(u))}
           </div>
         </div>
 
-        {/* Theme + brand URL import */}
+        {/* Theme */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span className="st-h">Theme</span>
-            <div className="st-url-row" style={{ maxWidth: 340, flex: 1 }}>
-              <input className="st-url-input" placeholder="Or paste a brand URL — e.g. www.brand.com" value={brandUrl} onChange={(e) => setBrandUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') importBrand() }} />
-              <button className="st-url-btn" onClick={importBrand} disabled={!brandUrl.trim()}>Import</button>
-            </div>
+            {themeOverflow && <SeeAll onClick={() => setThemeAllOpen(true)} />}
           </div>
-          <div className="st-themerow">
-            <button className="st-card" onClick={() => setCreateOpen(true)} style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ aspectRatio: '1.6', display: 'grid', placeItems: 'center', background: 'var(--surface-2)' }}>
-                <span style={{ width: 30, height: 30, borderRadius: 999, border: '1px solid var(--border-strong)', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}><Icon name="plus" size={15} /></span>
-              </div>
-              <div className="st-card-cap"><div className="st-card-name">Create New</div><div className="st-card-sub">Custom kit</div></div>
-            </button>
-            {allThemes.map((t) => {
-              const c = t.colors
-              const sel = draft.brandThemeId === t.id
-              return (
-                <button key={t.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => update({ brandThemeId: t.id, brand: themeToBrand(t) })}>
-                  {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
-                  <TemplatePreview register={registerForBrand(themeToBrand(t))} palette={[c.secondary, c.accent || c.primary, c.surface]} title={t.name} kicker={t.titleFont} ratio={1.6} />
-                  <div className="st-card-cap"><div className="st-card-name">{t.name}</div><div className="st-card-sub">{t.titleFont}</div></div>
-                </button>
-              )
-            })}
+          <div className="st-cardrow">
+            {CreateCard()}
+            {allThemes.slice(0, 4).map((t) => ThemeCard(t))}
           </div>
         </div>
       </div>
@@ -274,17 +280,47 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
               <input className="st-url-input" placeholder="Paste a product URL — www.your-product.com" value={productUrl} onChange={(e) => setProductUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') importProduct() }} />
               <button className="st-url-btn" onClick={importProduct} disabled={!productUrl.trim() || images.length >= 4}>Import</button>
             </div>
-            <button className="st-url-btn" disabled style={{ background: 'var(--surface-2)', color: 'var(--text-2)', padding: '10px 0', border: '1px solid var(--border-strong)' }} title="Wired later"><Icon name="apps" size={12} /> Select from catalog</button>
+            <button className="st-url-btn" disabled style={{ background: 'var(--surface-2)', color: 'var(--text-2)', padding: '10px 0', border: '1px solid var(--border-strong)' }} title="Wired later">Select from catalog</button>
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <button onClick={() => setProdOpen(false)} style={{ padding: '9px 18px', borderRadius: 10, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Done</button>
+              <button onClick={() => setProdOpen(false)} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', background: '#fff', color: '#0a0a0c', fontSize: 13.5, fontWeight: 650, cursor: 'pointer', fontFamily: 'var(--font-display)' }}>Done</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* See-all galleries */}
+      {styleAllOpen && (
+        <GalleryPopup title="All styles" onClose={() => setStyleAllOpen(false)}>
+          {USE_CASES.map((u) => StyleCard(u, () => setStyleAllOpen(false)))}
+        </GalleryPopup>
+      )}
+      {themeAllOpen && (
+        <GalleryPopup title="All themes" onClose={() => setThemeAllOpen(false)}>
+          {CreateCard()}
+          {allThemes.map((t) => ThemeCard(t, () => setThemeAllOpen(false)))}
+        </GalleryPopup>
+      )}
+
       {createOpen && (
         <ThemeModal onClose={() => setCreateOpen(false)} onSaved={(t) => { setCreateOpen(false); update({ brandThemeId: t.id, brand: themeToBrand(t) }) }} />
       )}
+    </div>
+  )
+}
+
+// Centered gallery popup for the full Style / Theme set.
+function GalleryPopup({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div onMouseDown={onClose} style={{ position: 'fixed', inset: 0, zIndex: 330, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(4px)', display: 'grid', placeItems: 'center', animation: 'fadeUp .16s ease' }}>
+      <div onMouseDown={(e) => e.stopPropagation()} style={{ width: 920, maxWidth: '92vw', maxHeight: '82vh', background: 'var(--bg-elev)', border: '1px solid var(--border-strong)', borderRadius: 18, boxShadow: 'var(--shadow-lg)', display: 'flex', flexDirection: 'column', animation: 'scaleIn .2s var(--ease)', overflow: 'hidden' }}>
+        <header style={{ flex: 'none', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, color: 'var(--text)' }}>{title}</span>
+          <button onClick={onClose} aria-label="Close" style={{ width: 34, height: 34, borderRadius: 999, border: 'none', background: 'var(--surface-2)', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="close" size={16} /></button>
+        </header>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 12 }}>
+          {children}
+        </div>
+      </div>
     </div>
   )
 }
