@@ -96,6 +96,21 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
   const handleRegenerate = (id: string) => setFrameNonces((m) => ({ ...m, [id]: (m[id] || 0) + 1 }))
   const handlePromptReroll = (id: string, text: string) => setFrameNonces((m) => ({ ...m, [id]: hashStr(text) }))
 
+  // Reroll the whole storyboard — bump the grid seed and re-run the phased job.
+  const handleRerollAll = () => {
+    if (!projectId || !committedSpec) return
+    setGridNonce((n) => n + 1)
+    setFrameNonces({})
+    setPhase('image')
+    setImageJob({ status: 'rendering', progress: 0, stage: IMAGE_PHASES[0] })
+    startGridImage(projectId, committedSpec).catch(() => {})
+    stopRef.current()
+    stopRef.current = pollGrid(projectId, 'image', (s) => {
+      setImageJob({ status: s.status === 'unknown' ? 'error' : s.status, progress: s.progress, stage: s.stage, error: s.error })
+      if (s.status === 'complete') setPhase('idle')
+    })
+  }
+
   // ── Stage F: generate the final video (no planning screen — straight to it) ──
   const handleGenerateVideo = () => {
     if (!projectId || !committedSpec) return
@@ -153,6 +168,7 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
               onActiveIndex={setActiveIndex}
               onRegenerate={handleRegenerate}
               onPromptReroll={handlePromptReroll}
+              onRerollAll={handleRerollAll}
             />
           ) : screen === 'done' ? (
             <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>

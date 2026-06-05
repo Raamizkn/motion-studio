@@ -188,6 +188,25 @@ export function VideoEditor() {
     return <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}>Loading editor…</div>
   }
 
+  // Storyboard-Grid projects get a focused result view (player + config panel),
+  // not the timeline editor.
+  if (useGrid) {
+    return (
+      <GridResultView
+        project={project}
+        time={time}
+        playing={playing}
+        duration={duration}
+        videoRef={videoRef}
+        videoUrl={videoUrl}
+        onPlay={() => setPlaying((p) => !p)}
+        onSeek={(t) => { setTime(Math.max(0, Math.min(duration, t))); setPlaying(false) }}
+        onRename={(nm) => store.renameProject(id, nm)}
+        onClose={() => nav('/studio')}
+      />
+    )
+  }
+
   // active subtitle cue = the last cue whose start time has passed the playhead
   const cues = project.narrationScript || []
   const caption = cues.length ? (cues.filter((c) => c.t <= time + 0.05).pop()?.text || '') : ''
@@ -582,9 +601,7 @@ export function VideoEditor() {
 
         <div className="ed-stage">
           <div className="ed-stage-card">
-            {useGrid ? (
-              <GridStage videoRef={videoRef} videoUrl={videoUrl} aspect={aspect} project={project} time={time} />
-            ) : useLive ? (
+            {useLive ? (
               <LiveCanvas
                 html={project.composedHtml!}
                 aspect={aspect}
@@ -610,7 +627,7 @@ export function VideoEditor() {
                 onText={textItem}
               />
             )}
-            {!useLive && !useGrid && sel && (
+            {!useLive && sel && (
               <div className="ed-toolbar-float">
                 <ContextualToolbar el={sel} isText={selIsText} onChange={patchSel} onDelete={deleteSel} onDuplicate={duplicateSel} />
               </div>
@@ -662,11 +679,9 @@ export function VideoEditor() {
       {rightOpen ? (
         <div className="ed-drawer-col">
           <div className="ed-drawer">
-            {useGrid
-              ? <GridFrames project={project} onCollapse={() => setRightOpen(false)} />
-              : useLive
-                ? <CompositionLayers els={compEls} selectedEid={selectedEid} onSelect={setSelectedEid} onCollapse={() => setRightOpen(false)} />
-                : <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />}
+            {useLive
+              ? <CompositionLayers els={compEls} selectedEid={selectedEid} onSelect={setSelectedEid} onCollapse={() => setRightOpen(false)} />
+              : <LayerPanel id={id} scene={currentScene} onCollapse={() => setRightOpen(false)} />}
           </div>
         </div>
       ) : (
@@ -742,62 +757,146 @@ function CompositionLayers({ els, selectedEid, onSelect, onCollapse }: { els: im
   )
 }
 
-// ── Grid stage: play the storyboard through the shared transport ─────────────
-// With a real generated MP4 it plays the <video>; in the (Vercel-friendly) stub
-// there is no MP4, so it renders the current storyboard frame for the playhead —
-// the timeline clock advances `time`, switching frames as the film "plays".
-function GridStage({ videoRef, videoUrl, aspect, project, time }: { videoRef: React.RefObject<HTMLVideoElement>; videoUrl: string | null; aspect: AspectRatio; project: import('../types').VideoProject; time: number }) {
+// ── Grid result view: player + config/actions panel (no timeline) ────────────
+// Shown for engine:'grid' projects. The big player plays the storyboard via the
+// shared transport (real MP4 if present, else the current frame for the
+// playhead). The right panel mirrors the ImagineArt result layout.
+function GridResultView({ project, time, playing, duration, videoRef, videoUrl, onPlay, onSeek, onRename, onClose }: {
+  project: import('../types').VideoProject
+  time: number
+  playing: boolean
+  duration: number
+  videoRef: React.RefObject<HTMLVideoElement>
+  videoUrl: string | null
+  onPlay: () => void
+  onSeek: (t: number) => void
+  onRename: (name: string) => void
+  onClose: () => void
+}) {
+  const spec = project.spec
+  const aspect = project.config.aspect
   const ratio = ASPECT_RATIO[aspect]
   const { outerRef, box } = useFit(ratio)
-  const spec = project.spec
   const frames = project.frames || []
   const cur = frames.find((f) => time >= f.start && time < f.end) || frames[frames.length - 1] || frames[0]
   const specFrame = spec?.frames.find((sf) => sf.id === cur?.id) || spec?.frames[cur?.index ?? 0]
   const vis = spec && specFrame ? stubFrameVisual(specFrame, spec.brand, spec, 0, 0) : null
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  const seekFromEvent = (e: React.MouseEvent) => {
+    const el = trackRef.current; if (!el) return
+    const r = el.getBoundingClientRect()
+    onSeek(((e.clientX - r.left) / r.width) * duration)
+  }
+  const def = useCaseDefSafe(spec?.useCase)
+  const model = project.videoPlan?.model || def?.model || 'kling'
+
+  const Row = ({ k, v }: { k: string; v: string }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13, padding: '7px 0', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ color: 'var(--text-3)' }}>{k}</span>
+      <span style={{ color: 'var(--text)', fontWeight: 500, textAlign: 'right' }}>{v}</span>
+    </div>
+  )
+
   return (
-    <div ref={outerRef} style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center' }}>
-      <div style={{ position: 'relative', width: box.w || '100%', height: box.h || undefined, aspectRatio: box.w ? undefined : String(ratio), borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
-        {videoUrl ? (
-          <video ref={videoRef} src={videoUrl} preload="auto" playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#0a0a0c' }} />
-        ) : vis ? (
-          <TemplatePreview key={cur?.id} register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
-        ) : (
-          <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Preparing…</div>
-        )}
+    <div style={{ display: 'flex', height: '100%', width: '100%', background: 'var(--bg)', overflow: 'hidden' }}>
+      {/* LEFT: player */}
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: 24, gap: 16 }}>
+        <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button onClick={onClose} aria-label="Back" style={{ width: 36, height: 36, borderRadius: 10, border: '1px solid var(--border-strong)', background: 'var(--surface)', color: 'var(--text)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="arrowLeft" size={16} /></button>
+          <input defaultValue={project.name} onBlur={(e) => onRename(e.target.value)} style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: 16, minWidth: 120 }} />
+        </div>
+
+        <div ref={outerRef} style={{ flex: 1, minHeight: 0, display: 'grid', placeItems: 'center' }}>
+          <div style={{ position: 'relative', width: box.w || '100%', height: box.h || undefined, aspectRatio: box.w ? undefined : String(ratio), borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
+            {videoUrl ? (
+              <video ref={videoRef} src={videoUrl} preload="auto" playsInline muted style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'contain', background: '#0a0a0c' }} />
+            ) : vis ? (
+              <TemplatePreview key={cur?.id} register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
+            ) : (
+              <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: 'var(--text-3)', fontSize: 13 }}>Preparing…</div>
+            )}
+          </div>
+        </div>
+
+        {/* transport */}
+        <div style={{ flex: 'none', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <button onClick={onPlay} aria-label={playing ? 'Pause' : 'Play'} style={{ width: 44, height: 44, borderRadius: 999, border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', display: 'grid', placeItems: 'center', flex: 'none' }}>
+            <Icon name={playing ? 'pause' : 'play'} size={18} />
+          </button>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, color: 'var(--text-2)', minWidth: 84 }}>{fmt(time)} / {fmt(duration)}</span>
+          <div ref={trackRef} onClick={seekFromEvent} style={{ flex: 1, height: 8, borderRadius: 99, background: 'var(--surface-3)', cursor: 'pointer', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, width: `${Math.min(100, (time / (duration || 1)) * 100)}%`, background: 'var(--accent-grad)', borderRadius: 99 }} />
+          </div>
+        </div>
       </div>
+
+      {/* RIGHT: details + actions */}
+      <aside style={{ width: 372, flex: 'none', borderLeft: '1px solid var(--border)', background: 'var(--bg-elev)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* download */}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {videoUrl ? (
+              <a className="btn primary" href={videoUrl} download={`${project.name}.mp4`} style={{ flex: 1, justifyContent: 'center' }}><Icon name="download" size={15} /> Download</a>
+            ) : (
+              <button className="btn primary" disabled title="Available once video models are wired" style={{ flex: 1, justifyContent: 'center', opacity: 0.55 }}><Icon name="download" size={15} /> Download</button>
+            )}
+          </div>
+
+          {/* prompt / description */}
+          {(spec?.product.description || spec?.style.treatment) && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', marginBottom: 6 }}>PROMPT</div>
+              <p style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.55 }}>{spec?.product.description || spec?.style.treatment}</p>
+            </div>
+          )}
+
+          {/* product images */}
+          {spec && spec.product.images.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', marginBottom: 8 }}>REFERENCES</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {spec.product.images.map((im) => <img key={im.id} src={im.dataUrl} alt={im.name} style={{ width: 48, height: 48, borderRadius: 8, objectFit: 'cover', border: '1px solid var(--border-strong)' }} />)}
+              </div>
+            </div>
+          )}
+
+          {/* config */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', marginBottom: 4 }}>DETAILS</div>
+            {def && <Row k="Style" v={def.title} />}
+            {spec && <Row k="Theme" v={spec.brand.register || spec.brand.tone} />}
+            <Row k="Model" v={model === 'kling' ? 'Kling' : 'Seedance'} />
+            {spec && <Row k="Frames" v={String(spec.frames.length)} />}
+            <Row k="Duration" v={`${project.config.durationSec}s`} />
+            <Row k="Canvas" v={aspect} />
+          </div>
+
+          {/* creation actions (stub) */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.06em', color: 'var(--text-4)', marginBottom: 8 }}>CREATION ACTIONS</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              {['Extend', 'Upscale', 'Edit', 'Reframe'].map((a) => (
+                <button key={a} className="btn" disabled title="Wired later" style={{ justifyContent: 'center', opacity: 0.55 }}>{a}</button>
+              ))}
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-4)', marginTop: 8 }}>Stubbed preview — model actions wire in later.</p>
+          </div>
+        </div>
+      </aside>
     </div>
   )
 }
 
-// ── Grid frames drawer: the storyboard frames the model returned ─────────────
-function GridFrames({ project, onCollapse }: { project: import('../types').VideoProject; onCollapse: () => void }) {
-  const spec = project.spec
-  const frames = spec?.frames || []
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div style={{ height: 56, flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', borderBottom: '1px solid var(--border)', fontFamily: 'var(--font-display)', fontWeight: 500, fontSize: 15, color: 'var(--text)' }}>
-        Frames
-        <button onClick={onCollapse} aria-label="Collapse" style={{ width: 28, height: 28, borderRadius: 999, border: 'none', background: 'transparent', color: 'var(--text-2)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Icon name="chevRight" size={16} /></button>
-      </div>
-      <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {frames.length === 0 && <div style={{ color: 'var(--text-3)', fontSize: 12.5, textAlign: 'center', marginTop: 24 }}>No frames.</div>}
-        {spec && frames.map((f, i) => {
-          const vis = stubFrameVisual(f, spec.brand, spec, 0, 0)
-          return (
-            <div key={f.id} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <div style={{ width: 72, flex: 'none', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <TemplatePreview register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={16 / 9} />
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {f.role}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.copyText || '—'}</div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+// Safe lookup of a use-case definition (kept here to avoid importing across files).
+function useCaseDefSafe(useCase?: string) {
+  const m: Record<string, { title: string; model: 'seedance' | 'kling' }> = {
+    saas_explainer: { title: 'SaaS Explainer', model: 'kling' },
+    physical_ad: { title: 'Physical Product Ad', model: 'seedance' },
+    pitch: { title: 'Pitch / Deck', model: 'kling' },
+    app_launch: { title: 'App Launch', model: 'kling' },
+    brand_manifesto: { title: 'Brand Manifesto', model: 'seedance' },
+  }
+  return useCase ? m[useCase] : undefined
 }
 
 // ── Canvas ──

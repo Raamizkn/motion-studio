@@ -39,6 +39,7 @@ export function StepStoryboard({
   onActiveIndex,
   onRegenerate,
   onPromptReroll,
+  onRerollAll,
 }: {
   spec: GenSpec
   gridNonce: number
@@ -47,6 +48,7 @@ export function StepStoryboard({
   onActiveIndex: (i: number) => void
   onRegenerate: (id: string) => void
   onPromptReroll: (id: string, text: string) => void
+  onRerollAll: () => void
 }) {
   const [prompt, setPrompt] = useState('')
   const frames = spec.frames
@@ -68,6 +70,11 @@ export function StepStoryboard({
         .gal-badge { position: absolute; top: 14px; left: 14px; z-index: 5; display: inline-flex; align-items: center; gap: 8px; padding: 5px 12px; border-radius: 999px; background: rgba(10,10,12,.66); backdrop-filter: blur(6px); }
         .gal-badge b { font-family: var(--font-mono); font-size: 12px; color: #fff; }
         .gal-badge span { font-size: 12px; color: rgba(255,255,255,.7); }
+        .gal-frame-reroll { position: absolute; top: 12px; right: 12px; z-index: 5; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; border: none; background: rgba(10,10,12,.72); backdrop-filter: blur(6px); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .14s, background .14s; }
+        .gal-frame-wrap:hover .gal-frame-reroll { opacity: 1; }
+        .gal-frame-reroll:hover { background: var(--accent); }
+        .gal-allbtn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 11px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
+        .gal-allbtn:hover { border-color: var(--accent); }
         .gal-bar { display: flex; gap: 10px; align-items: center; }
         .gal-input { flex: 1; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 12px 14px; color: var(--text); font-size: 13.5px; font-family: var(--font); outline: none; transition: border-color .14s; }
         .gal-input:focus { border-color: var(--accent); }
@@ -85,30 +92,31 @@ export function StepStoryboard({
         .gal-thumb.sel .gal-thumb-cap { color: var(--text); font-weight: 600; }
       `}</style>
 
-      {/* Header + control bar share the top row to save vertical space */}
+      {/* Header + reroll-all */}
       <div className="gal-head">
         <div>
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>Storyboard</h2>
-          <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 5 }}>{n} frames the model returned · step through, reroll, or reroll from a prompt.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 5 }}>{n} frames the model returned · hover a frame to reroll it, or reroll from a prompt.</p>
         </div>
+        <button className="gal-allbtn" onClick={onRerollAll}><Icon name="refresh" size={15} /> Reroll all</button>
       </div>
 
-      {/* Hero frame — grows to fill */}
+      {/* Hero frame — grows to fill; per-frame reroll appears on hover */}
       <div ref={ref} style={{ flex: 1, minHeight: 0, position: 'relative', display: 'grid', placeItems: 'center' }}>
         {n > 1 && <button className="gal-nav" style={{ left: 6 }} onClick={() => go(-1)} aria-label="Previous"><Icon name="chevLeft" size={22} /></button>}
         {active && vis && box.w > 0 && (
-          <div style={{ position: 'relative', width: box.w, height: box.h, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
+          <div className="gal-frame-wrap" style={{ position: 'relative', width: box.w, height: box.h, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
             <span className="gal-badge"><b>{idx + 1}/{n}</b><span>{active.role}</span></span>
+            <button className="gal-frame-reroll" onClick={() => onRegenerate(active.id)}><Icon name="refresh" size={14} /> Reroll</button>
             <TemplatePreview register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
           </div>
         )}
         {n > 1 && <button className="gal-nav" style={{ right: 6 }} onClick={() => go(1)} aria-label="Next"><Icon name="chevRight" size={22} /></button>}
       </div>
 
-      {/* Per-frame reroll + prompt */}
+      {/* Prompt reroll for the active frame */}
       {active && (
         <div className="gal-bar">
-          <button className="gal-btn" onClick={() => onRegenerate(active.id)}><Icon name="refresh" size={15} /> Reroll frame {idx + 1}</button>
           <input
             className="gal-input"
             placeholder={`Reroll frame ${idx + 1} from a prompt — e.g. "swap background to deep navy, tighter crop"`}
@@ -116,7 +124,7 @@ export function StepStoryboard({
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submitPrompt() }}
           />
-          <button className="gal-btn primary" disabled={!prompt.trim()} onClick={submitPrompt}><Icon name="sparkle" size={15} /> Reroll</button>
+          <button className="gal-btn primary" disabled={!prompt.trim()} onClick={submitPrompt}><Icon name="sparkle" size={15} /> Reroll from prompt</button>
         </div>
       )}
 
