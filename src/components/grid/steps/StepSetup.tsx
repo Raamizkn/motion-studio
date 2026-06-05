@@ -1,23 +1,22 @@
 import { useRef, useState } from 'react'
 import type { Draft } from '../wizard'
-import { ingestProductFiles, themeToBrand, registerForBrand, importProductFromUrlStub } from '../wizard'
+import { ingestProductFiles, themeToBrand, importProductFromUrlStub } from '../wizard'
 import type { UseCase, GridAspect } from '../../../spec'
 import { USE_CASES } from '../../../spec'
 import { computeGrid } from '../../../engine/gridGeometry'
 import { Icon } from '../../Icon'
-import { TemplatePreview } from '../../cards'
+import { ThemeMotif } from '../ThemeMotif'
 import { ThemeModal } from '../../ThemeStudio'
 import { useStore } from '../../../store'
 import { BUILTIN_THEMES } from '../../../data'
 
-type PReg = 'editorial' | 'product' | 'bold' | 'minimal' | 'infographic' | 'poster' | 'presentation'
-
-const STYLE_GFX: Record<UseCase, { register: PReg; title: string; kicker: string; palette: string[] }> = {
-  saas_explainer: { register: 'product', title: 'Ship faster', kicker: 'SaaS', palette: ['#8a3ffc', '#4e7bff'] },
-  physical_ad: { register: 'poster', title: 'The drop is here', kicker: 'Ad', palette: ['#ec4899', '#8a3ffc'] },
-  pitch: { register: 'presentation', title: 'Q3 in review', kicker: 'Pitch', palette: ['#3b82f6', '#8a3ffc'] },
-  app_launch: { register: 'product', title: 'Your day, organized', kicker: 'App', palette: ['#2dd4bf', '#3b82f6'] },
-  brand_manifesto: { register: 'bold', title: 'We believe', kicker: 'Brand', palette: ['#ff6b6b', '#ff9f45'] },
+// Real sample clips that play inside the Style cards.
+const STYLE_VIDEO: Record<UseCase, string> = {
+  saas_explainer: '/styles/saas-madison.mp4',
+  physical_ad: '/styles/product-lipstick.mp4',
+  pitch: '/styles/saas-spotify.mp4',
+  app_launch: '/styles/product-mouse.mp4',
+  brand_manifesto: '/styles/product-cutoutstyle.mp4',
 }
 
 const RATIO: Record<GridAspect, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1 }
@@ -61,12 +60,14 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
 
   // ── card renderers (shared between the row and the See-all gallery) ──
   const StyleCard = (u: typeof USE_CASES[number], onPicked?: () => void) => {
-    const g = STYLE_GFX[u.id]
     const sel = draft.useCase === u.id
+    const video = STYLE_VIDEO[u.id]
     return (
       <button key={u.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => { onPickStyle(u.id); onPicked?.() }}>
         {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
-        <TemplatePreview register={g.register} palette={g.palette} title={g.title} kicker={g.kicker} ratio={1.6} />
+        <div style={{ aspectRatio: '1.6', background: '#0a0a0c', overflow: 'hidden' }}>
+          <video src={video} muted loop autoPlay playsInline preload="metadata" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        </div>
         <div className="st-card-cap"><div className="st-card-name">{u.title}</div><div className="st-card-sub">{u.suggestedAspect} · {u.model}</div></div>
       </button>
     )
@@ -80,12 +81,11 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
     </button>
   )
   const ThemeCard = (t: typeof allThemes[number], onPicked?: () => void) => {
-    const c = t.colors
     const sel = draft.brandThemeId === t.id
     return (
       <button key={t.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => { update({ brandThemeId: t.id, brand: themeToBrand(t) }); onPicked?.() }}>
         {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
-        <TemplatePreview register={registerForBrand(themeToBrand(t))} palette={[c.secondary, c.accent || c.primary, c.surface]} title={t.name} kicker={t.titleFont} ratio={1.6} />
+        <div style={{ position: 'relative', aspectRatio: '1.6', overflow: 'hidden' }}><ThemeMotif theme={t} /></div>
         <div className="st-card-cap"><div className="st-card-name">{t.name}</div><div className="st-card-sub">{t.titleFont}</div></div>
       </button>
     )
@@ -100,6 +100,14 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
   return (
     <div style={{ height: '100%', display: 'flex', gap: 28, minHeight: 0 }}>
       <style>{`
+        /* animated theme-motif keyframes */
+        @keyframes tmf-tw { 0%,100% { opacity: .35; transform: scale(.8) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(20deg); } }
+        @keyframes tmf-drift { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        @keyframes tmf-build { 0% { width: 8px; } 50% { width: 56px; } 100% { width: 8px; } }
+        @keyframes tmf-flip { 0%,49% { opacity: 0; } 50%,100% { opacity: 1; } }
+        @keyframes tmf-pop { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes tmf-rise { 0%,100% { transform: translateY(6px); opacity: .85; } 50% { transform: translateY(0); opacity: 1; } }
+
         .st-h { font-family: var(--font-display); font-size: 14px; font-weight: 650; color: var(--text); }
         .st-label { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
         .st-cardrow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
