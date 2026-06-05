@@ -254,6 +254,8 @@ export function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/studio" replace />} />
         <Route path="/studio" element={<Shell><Dashboard /></Shell>} />
+        {/* Storyboard-Grid result view — renders the dashboard with a result modal overlay */}
+        <Route path="/studio/projects/:id/result" element={<Shell><Dashboard /></Shell>} />
         {/* Flow-specific creation screens */}
         <Route path="/studio/create/:flow" element={<Shell><FlowSetup /></Shell>} />
         {/* Generic new project (legacy / advanced) */}

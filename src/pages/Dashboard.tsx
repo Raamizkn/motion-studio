@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store'
 import { TEMPLATES, TEMPLATE_CATEGORIES } from '../data'
 import type { FlowType } from '../data'
@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon'
 import type { StudioTemplate } from '../types'
 import type { UseCase } from '../spec'
 import { StudioModal } from '../components/grid/StudioModal'
+import { ResultModal } from '../components/grid/ResultModal'
 
 // ── Flow entry cards — each opens the Studio modal seeded to a use case ──────
 type FlowCard = { id: FlowType; useCase: UseCase; register: 'infographic' | 'presentation' | 'bold' | 'poster'; title: string; kicker: string; desc: string; palette: string[] }
@@ -20,12 +21,15 @@ const VM_CARDS: FlowCard[] = [
 
 export function Dashboard() {
   const nav = useNavigate()
+  const { id: resultId } = useParams()
   const projects = useStore((s) => s.projects)
   const [cat, setCat] = useState<string>('All')
   const [studioOpen, setStudioOpen] = useState(false)
   const [studioUseCase, setStudioUseCase] = useState<UseCase | undefined>(undefined)
   const filtered = cat === 'All' ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat)
   const openStudio = (useCase?: UseCase) => { setStudioUseCase(useCase); setStudioOpen(true) }
+  // Result modal is opened by being on /studio/projects/:id/result
+  const resultProject = resultId ? projects.find((p) => p.id === resultId) : null
 
   // Templates never auto-generate — selecting one opens the Assist config with
   // the template's settings prefilled, so the user can tweak before composing.
@@ -214,6 +218,7 @@ export function Dashboard() {
       </div>
 
       <StudioModal open={studioOpen} onClose={() => setStudioOpen(false)} initialUseCase={studioUseCase} />
+      {resultProject && <ResultModal project={resultProject} onClose={() => nav('/studio')} />}
     </div>
   )
 }

@@ -255,7 +255,7 @@ export function defaultSpec(useCase: UseCase = 'saas_explainer'): GenSpec {
     product: { assetIds: [], images: [] },
     aspect: def.suggestedAspect,
     durationSec: 15,
-    frameCount: 6,
+    frameCount: 9,
     style: {
       templateId: def.suggestedTemplateId,
       treatment: def.suggestedTreatment,

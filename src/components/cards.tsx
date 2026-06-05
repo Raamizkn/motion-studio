@@ -292,9 +292,11 @@ export function ProjectCard({ project }: { project: VideoProject }) {
   const { renameProject, deleteProject, duplicateProject } = useStore()
   const ratio = ASPECT_NUM[project.config.aspect] || 16 / 9
   const isGrid = project.engine === 'grid'
-  const dest = isGrid || project.composedHtml || project.status === 'complete' || project.status === 'rendering'
-    ? `/studio/projects/${project.id}/editor`
-    : `/studio/projects/${project.id}/generate`
+  const dest = isGrid
+    ? `/studio/projects/${project.id}/result`
+    : project.composedHtml || project.status === 'complete' || project.status === 'rendering'
+      ? `/studio/projects/${project.id}/editor`
+      : `/studio/projects/${project.id}/generate`
 
   return (
     <div

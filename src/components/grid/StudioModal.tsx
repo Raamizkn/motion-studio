@@ -61,7 +61,7 @@ export function StudioModal({ open, onClose, initialUseCase }: { open: boolean; 
   // land in the editor once the video is done (must run before any early return)
   useEffect(() => {
     if (!open || screen !== 'done' || !projectId) return
-    const t = setTimeout(() => { onClose(); nav(`/studio/projects/${projectId}/editor`) }, 1100)
+    const t = setTimeout(() => { onClose(); nav(`/studio/projects/${projectId}/result`) }, 1100)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, screen, projectId])
