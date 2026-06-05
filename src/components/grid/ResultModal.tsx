@@ -162,7 +162,7 @@ export function ResultModal({ project, onClose }: { project: VideoProject; onClo
           {/* Header: Download + share/close */}
           <div style={{ padding: '18px 20px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
             {url ? (
-              <a href={url} download={`${project.name}.mp4`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 11, background: 'var(--accent-grad)', color: '#fff', fontSize: 14, fontWeight: 650, boxShadow: '0 4px 18px var(--accent-glow)' }}>
+              <a href={url} download={`${project.name}.mp4`} style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 16px', borderRadius: 11, background: '#fff', color: '#0a0a0c', fontSize: 14, fontWeight: 650 }}>
                 <Icon name="download" size={15} /> Download
               </a>
             ) : (

@@ -72,7 +72,7 @@ export function StepStoryboard({
         .gal-badge span { font-size: 12px; color: rgba(255,255,255,.7); }
         .gal-frame-reroll { position: absolute; top: 12px; right: 12px; z-index: 5; display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; border: none; background: rgba(10,10,12,.72); backdrop-filter: blur(6px); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; opacity: 0; transition: opacity .14s, background .14s; }
         .gal-frame-wrap:hover .gal-frame-reroll { opacity: 1; }
-        .gal-frame-reroll:hover { background: var(--accent); }
+        .gal-frame-reroll:hover { background: rgba(255,255,255,.16); }
         .gal-allbtn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border-radius: 11px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; }
         .gal-allbtn:hover { border-color: var(--accent); }
         .gal-bar { display: flex; gap: 10px; align-items: center; }
@@ -80,8 +80,8 @@ export function StepStoryboard({
         .gal-input:focus { border-color: var(--accent); }
         .gal-btn { display: inline-flex; align-items: center; gap: 7px; padding: 12px 16px; border-radius: 12px; font-size: 13.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); white-space: nowrap; }
         .gal-btn:hover { border-color: var(--accent); }
-        .gal-btn.primary { border: none; background: var(--accent); color: #fff; }
-        .gal-btn.primary:disabled { opacity: .45; cursor: default; }
+        .gal-btn.primary { border: none; background: #fff; color: #0a0a0c; font-weight: 650; }
+        .gal-btn.primary:disabled { background: var(--surface-2); color: var(--text-4); cursor: default; }
         .gal-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; }
         .gal-thumb { position: relative; flex: none; display: flex; flex-direction: column; gap: 6px; cursor: pointer; background: none; border: none; padding: 0; }
         .gal-thumb-art { position: relative; border-radius: 9px; overflow: hidden; border: 2px solid transparent; transition: border-color .14s, transform .12s; }
@@ -98,7 +98,7 @@ export function StepStoryboard({
           <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 22, fontWeight: 600, color: 'var(--text)' }}>Storyboard</h2>
           <p style={{ fontSize: 13, color: 'var(--text-3)', marginTop: 5 }}>{n} frames the model returned · hover a frame to reroll it, or reroll from a prompt.</p>
         </div>
-        <button className="gal-allbtn" onClick={onRerollAll}><Icon name="refresh" size={15} /> Reroll all</button>
+        <button className="gal-allbtn" onClick={onRerollAll}>Reroll all</button>
       </div>
 
       {/* Hero frame — grows to fill; per-frame reroll appears on hover */}
@@ -107,7 +107,7 @@ export function StepStoryboard({
         {active && vis && box.w > 0 && (
           <div className="gal-frame-wrap" style={{ position: 'relative', width: box.w, height: box.h, borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border)', boxShadow: 'var(--shadow-lg)', background: '#0a0a0c' }}>
             <span className="gal-badge"><b>{idx + 1}/{n}</b><span>{active.role}</span></span>
-            <button className="gal-frame-reroll" onClick={() => onRegenerate(active.id)}><Icon name="refresh" size={14} /> Reroll</button>
+            <button className="gal-frame-reroll" onClick={() => onRegenerate(active.id)}>Reroll</button>
             <TemplatePreview register={vis.register} palette={vis.palette} title={vis.title} kicker={vis.kicker} ratio={ratio} />
           </div>
         )}
@@ -124,7 +124,7 @@ export function StepStoryboard({
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') submitPrompt() }}
           />
-          <button className="gal-btn primary" disabled={!prompt.trim()} onClick={submitPrompt}><Icon name="sparkle" size={15} /> Reroll from prompt</button>
+          <button className="gal-btn primary" disabled={!prompt.trim()} onClick={submitPrompt}>Reroll from prompt</button>
         </div>
       )}
 

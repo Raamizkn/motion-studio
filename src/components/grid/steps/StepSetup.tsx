@@ -5,7 +5,6 @@ import type { UseCase, GridAspect } from '../../../spec'
 import { USE_CASES } from '../../../spec'
 import { computeGrid } from '../../../engine/gridGeometry'
 import { Icon } from '../../Icon'
-import { ThemeMotif } from '../ThemeMotif'
 import { ThemeModal } from '../../ThemeStudio'
 import { useStore } from '../../../store'
 import { BUILTIN_THEMES } from '../../../data'
@@ -73,20 +72,36 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
     )
   }
   const CreateCard = () => (
-    <button key="create" className="st-card" onClick={() => setCreateOpen(true)} style={{ display: 'flex', flexDirection: 'column' }}>
-      <div style={{ aspectRatio: '1.6', display: 'grid', placeItems: 'center', background: 'var(--surface-2)' }}>
-        <span style={{ width: 30, height: 30, borderRadius: 999, border: '1px solid var(--border-strong)', display: 'grid', placeItems: 'center', color: 'var(--text-3)' }}><Icon name="plus" size={15} /></span>
+    <button key="create" className="st-card st-theme" onClick={() => setCreateOpen(true)}>
+      <div className="st-theme-body">
+        <span className="st-theme-ico" style={{ color: 'var(--text-3)' }}><Icon name="plus" size={18} /></span>
+        <div className="st-theme-meta">
+          <div className="st-theme-font">Custom kit</div>
+          <div className="st-theme-name">Create New</div>
+        </div>
       </div>
-      <div className="st-card-cap"><div className="st-card-name">Create New</div><div className="st-card-sub">Custom kit</div></div>
+      <div className="st-theme-strip">
+        {['#2a2a2e', '#202024', '#26262a', '#1c1c20'].map((s, i) => <i key={i} style={{ background: s }} />)}
+      </div>
     </button>
   )
   const ThemeCard = (t: typeof allThemes[number], onPicked?: () => void) => {
     const sel = draft.brandThemeId === t.id
+    const c = t.colors
+    const strip = [c.primary, c.secondary, c.tertiary || c.accent || c.secondary, c.accent || c.primary]
     return (
-      <button key={t.id} className={`st-card${sel ? ' sel' : ''}`} onClick={() => { update({ brandThemeId: t.id, brand: themeToBrand(t) }); onPicked?.() }}>
+      <button key={t.id} className={`st-card st-theme${sel ? ' sel' : ''}`} onClick={() => { update({ brandThemeId: t.id, brand: themeToBrand(t) }); onPicked?.() }}>
         {sel && <span className="st-card-check"><Icon name="check" size={11} /></span>}
-        <div style={{ position: 'relative', aspectRatio: '1.6', overflow: 'hidden' }}><ThemeMotif theme={t} /></div>
-        <div className="st-card-cap"><div className="st-card-name">{t.name}</div><div className="st-card-sub">{t.titleFont}</div></div>
+        <div className="st-theme-body">
+          <span className="st-theme-ico" style={{ color: c.accent || c.secondary }}><Squiggle /></span>
+          <div className="st-theme-meta">
+            <div className="st-theme-font" style={{ fontFamily: `'${t.titleFont}', var(--font-display)` }}>{t.titleFont}</div>
+            <div className="st-theme-name">{t.name}</div>
+          </div>
+        </div>
+        <div className="st-theme-strip">
+          {strip.map((s, i) => <i key={i} style={{ background: s }} />)}
+        </div>
       </button>
     )
   }
@@ -111,6 +126,16 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
         .st-card-name { font-size: 12.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .st-card-sub { font-size: 10.5px; color: var(--text-3); margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .st-card-check { position: absolute; top: 7px; right: 7px; z-index: 3; width: 20px; height: 20px; border-radius: 999px; background: var(--accent); color: #fff; display: grid; place-items: center; }
+
+        /* Theme specimen cards (font + palette) */
+        .st-theme { display: flex; flex-direction: column; background: #141417; }
+        .st-theme-body { flex: 1; padding: 14px 14px 12px; display: flex; flex-direction: column; min-height: 116px; }
+        .st-theme-ico { display: inline-flex; }
+        .st-theme-meta { margin-top: auto; }
+        .st-theme-font { font-size: 13px; line-height: 1.2; color: var(--text-4); margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .st-theme-name { font-size: 16px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--text); line-height: 1.05; }
+        .st-theme-strip { display: flex; height: 12px; }
+        .st-theme-strip i { flex: 1; }
 
         .st-prompt { width: 100%; flex: 1; min-height: 0; background: var(--surface); border: 1.5px solid var(--border-strong); border-radius: 14px; padding: 14px 16px; color: var(--text); font-size: 15px; line-height: 1.5; font-family: var(--font); resize: none; outline: none; transition: border-color .14s; }
         .st-prompt:focus { border-color: var(--accent); }
@@ -305,6 +330,15 @@ export function StepSetup({ draft, update, onPickStyle }: { draft: Draft; update
         <ThemeModal onClose={() => setCreateOpen(false)} onSaved={(t) => { setCreateOpen(false); update({ brandThemeId: t.id, brand: themeToBrand(t) }) }} />
       )}
     </div>
+  )
+}
+
+// Hand-drawn squiggle glyph for theme specimen cards.
+function Squiggle() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 32 32" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M4 19c3-9 7-9 9-2s6 7 9-3" />
+    </svg>
   )
 }
 
