@@ -16,6 +16,7 @@ export interface Draft {
   transitions: ClipJoin[]
   templateId: string
   notes: string
+  audioId: string // selected soundtrack id ('' = none)
 }
 
 export function initialDraft(useCase: UseCase = 'saas_explainer'): Draft {
@@ -33,6 +34,7 @@ export function initialDraft(useCase: UseCase = 'saas_explainer'): Draft {
     transitions: [],
     templateId: def.suggestedTemplateId,
     notes: '',
+    audioId: 'cinematic_dark',
   }
 }
 
