@@ -16,12 +16,23 @@ const EXTRA: VibeTheme[] = [
 ]
 
 const VARIANTS: { id: ThumbVariant; label: string }[] = [
-  { id: 'strip', label: 'Strip (original)' },
-  { id: 'priority', label: 'Priority bar' },
-  { id: 'stack', label: 'Stacked deck' },
-  { id: 'columns', label: 'Columns' },
+  { id: 'glow-bottom', label: 'Glow · bottom' },
+  { id: 'glow-top', label: 'Glow · top' },
+  { id: 'glow-side', label: 'Glow · side' },
+  { id: 'glow-corner', label: 'Glow · corner' },
+  { id: 'glow-spot', label: 'Glow · spotlight' },
   { id: 'blocks', label: 'Mosaic' },
+  { id: 'corner', label: 'Corner' },
+  { id: 'quadrant', label: 'Quadrant' },
+  { id: 'arch', label: 'Arch' },
+  { id: 'bauhaus', label: 'Bauhaus' },
+  { id: 'diagonal', label: 'Diagonal' },
+  { id: 'priority', label: 'Priority bar' },
+  { id: 'rail', label: 'Rail' },
+  { id: 'columns', label: 'Columns' },
 ]
+
+const SHAPES: NonNullable<Parameters<typeof ThemePreviewFrame>[0]['meta']>['shape'][] = ['arc', 'blobs', 'panel', 'orbit']
 
 export function ThemeLab() {
   const themes = [...BUILTIN_THEMES, ...EXTRA]
@@ -42,32 +53,35 @@ export function ThemeLab() {
       ))}
 
       <section style={{ marginBottom: 40 }}>
-        <h2 style={heading}>Thumbnails @ small (96px) — Strip</h2>
+        <h2 style={heading}>Thumbnails @ small (96px) — Priority</h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          {themes.map((t) => <div key={t.id} style={{ width: 96 }}><ThemeThumb theme={fromVibeTheme(t)} variant="strip" radius={12} /></div>)}
+          {themes.map((t) => <div key={t.id} style={{ width: 96 }}><ThemeThumb theme={fromVibeTheme(t)} variant="priority" radius={12} /></div>)}
         </div>
       </section>
 
-      <section style={{ marginBottom: 40 }}>
-        <h2 style={heading}>Preview frames · product = headphones</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
-          {themes.map((t) => (
-            <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ height: 470, borderRadius: 18, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <ThemePreviewFrame theme={fromVibeTheme(t)} meta={{ durationSec: 15, product: 'headphones' }} />
+      {/* Preview shape variants — big shapes carry the palette */}
+      {SHAPES.map((shape) => (
+        <section key={shape} style={{ marginBottom: 40 }}>
+          <h2 style={heading}>Preview · shape = {shape} · headphones</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+            {themes.map((t) => (
+              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ height: 470, borderRadius: 18, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <ThemePreviewFrame theme={fromVibeTheme(t)} meta={{ durationSec: 15, product: 'headphones', shape }} />
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t.name} · {t.titleFont} / {t.bodyFont}</span>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t.name} · {t.titleFont} / {t.bodyFont}</span>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      ))}
 
       <section>
-        <h2 style={heading}>Preview frames · product = airpods</h2>
+        <h2 style={heading}>Preview · shape = arc · airpods</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
           {themes.slice(0, 4).map((t) => (
             <div key={t.id} style={{ height: 470, borderRadius: 18, overflow: 'hidden', border: '1px solid var(--border)' }}>
-              <ThemePreviewFrame theme={fromVibeTheme(t)} meta={{ durationSec: 15, product: 'airpods' }} />
+              <ThemePreviewFrame theme={fromVibeTheme(t)} meta={{ durationSec: 15, product: 'airpods', shape: 'arc' }} />
             </div>
           ))}
         </div>

@@ -282,17 +282,6 @@ export const THEME_PRODUCTS: Record<string, string> = {
 }
 export type ProductKey = keyof typeof THEME_PRODUCTS
 
-// Frosted-glass tokens that read on either a light or dark gradient field.
-function glassTokens(on: string) {
-  const light = on === '#ffffff' // gradient is dark → white text → faint light glass
-  return {
-    plate: light ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.5)',
-    plateBorder: light ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.65)',
-    pill: light ? 'rgba(255,255,255,0.15)' : 'rgba(20,20,24,0.1)',
-    pillBorder: light ? 'rgba(255,255,255,0.34)' : 'rgba(20,20,24,0.18)',
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 //  THUMBNAIL — explicit-colour square specimen for the gallery
 // ─────────────────────────────────────────────────────────────────────────────
@@ -303,15 +292,36 @@ function glassTokens(on: string) {
 // sized so one component reads from ≈80px up to large cards.
 //   strip    — name + brand mark, hard 4-swatch base (the original)
 //   priority — name, proportional colour bar (width = priority)
-//   stack    — name, fanned deck of colour cards (priority by size/stack)
+//   dots     — name, row of colour dots sized by priority
+//   priority — name, proportional colour bar (width = priority) — default
+//   rail     — proportional colour spine on the left + type
 //   columns  — full-height proportional colour columns + a type band
 //   blocks   — asymmetric colour mosaic (priority by block area)
-export type ThumbVariant = 'strip' | 'priority' | 'stack' | 'columns' | 'blocks'
+//   corner   — primary corner field nesting the rest (priority by area)
+//   quadrant — even 2×2 colour grid in the corner
+//   arch     — nested rainbow arches rising from the base
+//   bauhaus  — circle/square/triangle/bar primitives in a row
+//   diagonal — colour wedges split on the diagonal
+//   glow-*   — a soft palette bloom on a black/white field (5 origins)
+export type ThumbVariant =
+  | 'priority' | 'rail' | 'columns' | 'blocks' | 'corner'
+  | 'quadrant' | 'arch' | 'bauhaus' | 'diagonal'
+  | 'glow-bottom' | 'glow-top' | 'glow-side' | 'glow-corner' | 'glow-spot'
 
 // Palette in priority order (primary → accent), always 4 entries.
 function priorityPalette(t: ThemeTokens): string[] { return padChips(t.chips) }
 
-export function ThemeThumb({ theme, radius = 16, variant = 'strip' }: { theme: ThemeInput; radius?: number; variant?: ThumbVariant }) {
+// Bloom origins for the 'glow-*' thumbnails — a soft light source in the
+// palette colours fading into a contrasting black/white field.
+const GLOWS: Record<string, { x: string; y: string; w: string; h: string; top: boolean; max: string; star?: boolean }> = {
+  'glow-bottom': { x: '50%', y: '116%', w: '135%', h: '92%', top: true, max: '82%' },
+  'glow-top': { x: '50%', y: '-16%', w: '135%', h: '92%', top: false, max: '82%' },
+  'glow-side': { x: '120%', y: '50%', w: '95%', h: '140%', top: true, max: '62%' },
+  'glow-corner': { x: '112%', y: '114%', w: '125%', h: '115%', top: true, max: '64%' },
+  'glow-spot': { x: '40%', y: '74%', w: '74%', h: '64%', top: true, max: '70%', star: true },
+}
+
+export function ThemeThumb({ theme, radius = 16, variant = 'priority' }: { theme: ThemeInput; radius?: number; variant?: ThumbVariant }) {
   const t = resolveTheme(theme)
   useThemeFonts(t)
   const pal = priorityPalette(t)
@@ -327,34 +337,35 @@ export function ThemeThumb({ theme, radius = 16, variant = 'strip' }: { theme: T
     </>
   )
 
-  if (variant === 'priority') {
-    const weights = [1.7, 1.15, 0.82, 0.6] // width ∝ priority
+  if (variant === 'rail') {
+    const weights = [1.7, 1.15, 0.82, 0.6]
     return (
       <div style={shell}>
-        <div style={{ position: 'absolute', inset: 0, background: tint }} />
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw' }}><TypeBlock /></div>
-        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '30cqw', display: 'flex' }}>
+        {/* proportional colour spine on the left */}
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '20cqw', display: 'flex', flexDirection: 'column' }}>
           {pal.map((c, i) => <span key={i} style={{ flex: weights[i], background: c }} />)}
+        </div>
+        <div style={{ position: 'absolute', left: '20cqw', right: 0, top: 0, bottom: 0, background: tint, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', gap: '3cqw' }}>
+          <TypeBlock />
         </div>
       </div>
     )
   }
 
-  if (variant === 'stack') {
-    // fanned deck — primary largest at the back, accent smallest at the front
-    const cards = [
-      { c: pal[0], s: 52, x: 30, y: 30, r: -8 },
-      { c: pal[1], s: 46, x: 44, y: 40, r: -2 },
-      { c: pal[2], s: 40, x: 58, y: 50, r: 5 },
-      { c: pal[3], s: 34, x: 70, y: 60, r: 12 },
-    ]
+  if (variant === 'corner') {
+    // colour field kept to a true bottom-right corner; type sits in the clear
+    // top band so the caption never sinks into the swatches.
     return (
       <div style={shell}>
         <div style={{ position: 'absolute', inset: 0, background: tint }} />
-        {cards.map((k, i) => (
-          <div key={i} style={{ position: 'absolute', left: `${k.x}%`, top: `${k.y}%`, width: `${k.s}cqw`, height: `${k.s}cqw`, borderRadius: '7cqw', background: k.c, transform: `translate(-50%,-50%) rotate(${k.r}deg)`, boxShadow: `0 4cqw 9cqw ${alpha('#000', t.dark ? 0.5 : 0.22)}`, border: `1.5px solid ${alpha(t.dark ? '#fff' : '#000', 0.08)}` }} />
-        ))}
-        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw', maxWidth: '74%' }}><TypeBlock /></div>
+        <div style={{ position: 'absolute', right: 0, bottom: 0, width: '50cqw', height: '50cqw', background: pal[0], borderTopLeftRadius: '13cqw' }} />
+        <div style={{ position: 'absolute', right: 0, bottom: 0, width: '33cqw', height: '33cqw', background: pal[1], borderTopLeftRadius: '11cqw' }} />
+        <div style={{ position: 'absolute', right: 0, bottom: 0, width: '19cqw', height: '19cqw', background: pal[2], borderTopLeftRadius: '8cqw' }} />
+        <div style={{ position: 'absolute', right: 0, bottom: 0, width: '9cqw', height: '9cqw', background: pal[3] }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw', maxWidth: '82%' }}>
+          <div style={{ fontFamily: t.titleStack, fontWeight: 800, fontSize: '12cqw', lineHeight: 1.02, letterSpacing: '0.005em', color: t.ink, overflowWrap: 'break-word' as const }}>{t.name}</div>
+          <div style={{ fontFamily: t.bodyStack, fontSize: '5.2cqw', color: t.inkSoft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fonts}</div>
+        </div>
       </div>
     )
   }
@@ -392,27 +403,97 @@ export function ThemeThumb({ theme, radius = 16, variant = 'strip' }: { theme: T
     )
   }
 
-  // 'strip' (default) — the original: brand mark, name in the title face, a
-  // font caption, ghost letterform, and a hard 4-swatch palette base.
+  if (variant === 'quadrant') {
+    return (
+      <div style={shell}>
+        <div style={{ position: 'absolute', inset: 0, background: tint }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw', maxWidth: '88%' }}>
+          <div style={{ fontFamily: t.titleStack, fontWeight: 800, fontSize: '12cqw', lineHeight: 1.02, color: t.ink, overflowWrap: 'break-word' as const }}>{t.name}</div>
+          <div style={{ fontFamily: t.bodyStack, fontSize: '5.2cqw', color: t.inkSoft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fonts}</div>
+        </div>
+        <div style={{ position: 'absolute', right: 0, bottom: 0, width: '52cqw', height: '52cqw', borderTopLeftRadius: '13cqw', overflow: 'hidden', display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr' }}>
+          {pal.map((c, i) => <span key={i} style={{ background: c }} />)}
+        </div>
+      </div>
+    )
+  }
+
+  if (variant === 'arch') {
+    const arches = pal.map((c, i) => ({ c, w: 92 - i * 21, h: 47 - i * 9 }))
+    return (
+      <div style={shell}>
+        <div style={{ position: 'absolute', inset: 0, background: tint }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw' }}><TypeBlock /></div>
+        {arches.map((a, i) => (
+          <div key={i} style={{ position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: `${a.w}cqw`, height: `${a.h}cqw`, background: a.c, borderRadius: '999cqw 999cqw 0 0' }} />
+        ))}
+      </div>
+    )
+  }
+
+  if (variant === 'bauhaus') {
+    return (
+      <div style={shell}>
+        <div style={{ position: 'absolute', inset: 0, background: tint }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw' }}><TypeBlock /></div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '0 10cqw 11cqw', display: 'flex', alignItems: 'flex-end', gap: '4cqw' }}>
+          <span style={{ width: '23cqw', height: '23cqw', borderRadius: '50%', background: pal[0], flex: 'none' }} />
+          <span style={{ width: '21cqw', height: '21cqw', borderRadius: '3.5cqw', background: pal[1], flex: 'none' }} />
+          <span style={{ width: '24cqw', height: '22cqw', background: pal[2], flex: 'none', clipPath: 'polygon(50% 0, 100% 100%, 0 100%)' }} />
+          <span style={{ width: '9cqw', height: '24cqw', borderRadius: '99cqw', background: pal[3], flex: 'none' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (variant === 'diagonal') {
+    return (
+      <div style={shell}>
+        <div style={{ position: 'absolute', inset: 0, background: tint }} />
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw' }}><TypeBlock /></div>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '46cqw', overflow: 'hidden' }}>
+          <div style={{ position: 'absolute', inset: 0, background: pal[0] }} />
+          <div style={{ position: 'absolute', inset: 0, background: pal[1], clipPath: 'polygon(0 0, 100% 100%, 0 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: pal[2], clipPath: 'polygon(100% 0, 100% 58%, 52% 0)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: pal[3], clipPath: 'polygon(100% 100%, 100% 64%, 64% 100%)' }} />
+        </div>
+      </div>
+    )
+  }
+
+  if (variant.startsWith('glow')) {
+    const cfg = GLOWS[variant]
+    const field = t.dark ? '#08080b' : '#fbfbfc'
+    const txt = t.dark ? '#ffffff' : '#0c0c0e'
+    const [a, b] = shapeColors(t)
+    const bloom = t.dark
+      ? `radial-gradient(${cfg.w} ${cfg.h} at ${cfg.x} ${cfg.y}, rgba(255,255,255,0.92), ${a} 22%, ${b} 48%, transparent 78%)`
+      : `radial-gradient(${cfg.w} ${cfg.h} at ${cfg.x} ${cfg.y}, ${a}, ${b} 44%, transparent 74%)`
+    return (
+      <div style={{ ...shell, background: field }}>
+        <div style={{ position: 'absolute', inset: 0, background: bloom }} />
+        {cfg.star && (
+          <svg viewBox="0 0 24 24" style={{ position: 'absolute', left: '34cqw', top: '54cqw', width: '12cqw', height: '12cqw', filter: 'drop-shadow(0 0 4cqw rgba(255,255,255,0.8))' }} aria-hidden>
+            <path d="M12 0c1 6 5 10 11 12-6 2-10 6-11 12-1-6-5-10-11-12C7 10 11 6 12 0Z" fill="#fff" />
+          </svg>
+        )}
+        <div style={{ position: 'absolute', inset: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', justifyContent: cfg.top ? 'flex-start' : 'flex-end', gap: '2.6cqw' }}>
+          <div style={{ maxWidth: cfg.max, fontFamily: t.titleStack, fontWeight: 800, fontSize: '10.5cqw', lineHeight: 1.05, letterSpacing: '0.015em', textTransform: 'uppercase', color: txt, overflowWrap: 'break-word' as const }}>{t.name}</div>
+          <div style={{ fontFamily: t.bodyStack, fontSize: '5.2cqw', color: alpha(txt, 0.6), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fonts}</div>
+        </div>
+      </div>
+    )
+  }
+
+  // 'priority' (default) — name + font caption on top, palette as a
+  // proportional colour bar below (widest swatch = highest priority).
+  const weights = [1.7, 1.15, 0.82, 0.6]
   return (
     <div style={shell}>
       <div style={{ position: 'absolute', inset: 0, background: tint }} />
-      <div aria-hidden style={{ position: 'absolute', right: '-6%', bottom: '-20%', fontFamily: t.titleStack, fontWeight: 800, fontSize: '90cqw', lineHeight: 1, color: t.inkGhost, letterSpacing: '-0.04em', pointerEvents: 'none' }}>{t.initial}</div>
-      <div style={{ position: 'absolute', inset: 0, padding: '9cqw 9cqw 0', display: 'flex', flexDirection: 'column' }}>
-        <span style={{ width: '17cqw', height: '17cqw', flex: 'none', borderRadius: '4.6cqw', background: t.logoSrc ? t.panel : t.accent, color: t.onAccent, display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-          {t.logoSrc ? <img src={t.logoSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <span style={{ fontFamily: t.titleStack, fontWeight: 800, fontSize: '9.5cqw', lineHeight: 1 }}>{t.initial}</span>}
-        </span>
-        <div style={{ marginTop: 'auto', paddingBottom: '10cqw', display: 'flex', flexDirection: 'column', gap: '2.6cqw' }}>
-          <div style={{ fontFamily: t.titleStack, fontWeight: 800, fontSize: '13cqw', lineHeight: 1, letterSpacing: '0.01em', textTransform: 'uppercase', color: t.ink, overflowWrap: 'break-word' as const }}>{t.name}</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '3cqw', minWidth: 0 }}>
-            <span style={{ fontFamily: t.titleStack, fontSize: '6cqw', fontWeight: 600, color: t.inkSoft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.titleName}</span>
-            <span style={{ width: '1.3cqw', height: '1.3cqw', borderRadius: '50%', background: t.accent, flex: 'none' }} />
-            <span style={{ fontFamily: t.bodyStack, fontSize: '6cqw', color: t.inkSoft, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.bodyName}</span>
-          </div>
-        </div>
-      </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, display: 'flex', height: '8cqw' }}>
-        {pal.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 0, padding: '11cqw 10cqw', display: 'flex', flexDirection: 'column', gap: '3cqw' }}><TypeBlock /></div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '30cqw', display: 'flex' }}>
+        {pal.map((c, i) => <span key={i} style={{ flex: weights[i], background: c }} />)}
       </div>
     </div>
   )
@@ -421,65 +502,110 @@ export function ThemeThumb({ theme, radius = 16, variant = 'strip' }: { theme: T
 // ─────────────────────────────────────────────────────────────────────────────
 //  PREVIEW FRAME — clean product-launch card
 // ─────────────────────────────────────────────────────────────────────────────
-// Deliberately uncluttered: a palette-gradient field, the headline in the title
-// face (two-tone), a sub-line in the body face, and a real product cutout
-// bleeding off the corner. Uniform across themes — only the gradient, the two
-// typefaces, and the text colour change. A pure function of the tokens.
+// Deliberately uncluttered: a solid surface field, the headline in the title
+// face (lead in ink, tail in the accent), a sub-line in the body face, and the
+// palette carried by BIG decorative shapes behind a real product cutout —
+// organic blobs, a sweeping arc, a colour-blocked panel, or orbiting circles.
+// Uniform across themes; only the colours and the two typefaces change.
+//   meta.shape: 'arc' (default) · 'blobs' · 'panel' · 'orbit'
 export interface PreviewMeta {
   headline?: string
   sub?: string
   durationSec?: number
   /** 'headphones' | 'airpods' | a URL | 'none' */
   product?: ProductKey | 'none' | string
+  shape?: 'arc' | 'blobs' | 'panel' | 'orbit'
+}
+
+// Three brand colours for the big shapes — falls back to accent tints when a
+// palette is mostly neutral, so monochrome themes still get shapely depth.
+function shapeColors(t: ThemeTokens): [string, string, string] {
+  const chroma = uniq([t.accent, t.secondary, t.tertiary, t.primary].filter(chromatic))
+  const a = chroma[0] || t.accent
+  const b = chroma[1] || mix(a, t.surface, 0.5)
+  const c = chroma[2] || mix(a, t.dark ? '#ffffff' : '#000000', 0.3)
+  return [a, b, c]
+}
+
+// All shapes live in the LOWER half of the frame so the headline (top band)
+// always sits on the clear surface. The product sits on top of them.
+function PreviewShapes({ variant, t }: { variant: NonNullable<PreviewMeta['shape']>; t: ThemeTokens }) {
+  const [a, b, c] = shapeColors(t)
+  const disc = (s: number, pos: React.CSSProperties, bg: string, extra: React.CSSProperties = {}): React.CSSProperties =>
+    ({ position: 'absolute', width: `${s}cqw`, height: `${s}cqw`, borderRadius: '50%', background: bg, ...pos, ...extra })
+
+  if (variant === 'blobs') {
+    return (
+      <>
+        <div style={{ position: 'absolute', right: '-12cqw', bottom: '-16cqw', width: '66cqw', height: '66cqw', background: a, borderRadius: '58% 42% 47% 53% / 53% 50% 50% 47%' }} />
+        <div style={{ position: 'absolute', left: '-10cqw', bottom: '6cqw', width: '34cqw', height: '34cqw', background: b, borderRadius: '50% 50% 46% 54% / 55% 45% 55% 45%' }} />
+        <div style={{ position: 'absolute', left: '30cqw', bottom: '-8cqw', width: '18cqw', height: '18cqw', background: c, borderRadius: '54% 46% 50% 50% / 48% 52% 48% 52%' }} />
+      </>
+    )
+  }
+  if (variant === 'panel') {
+    return (
+      <>
+        <div style={{ position: 'absolute', right: '-6cqw', bottom: '6cqw', width: '60cqw', height: '56cqw', background: a, borderRadius: '9cqw' }} />
+        <div style={disc(30, { left: '-8cqw', bottom: '-8cqw' }, b)} />
+        <div style={disc(9, { left: '24cqw', bottom: '18cqw' }, c)} />
+      </>
+    )
+  }
+  if (variant === 'orbit') {
+    return (
+      <>
+        <div style={disc(96, { right: '-26cqw', bottom: '-32cqw' }, a)} />
+        <div style={disc(40, { right: '30cqw', bottom: '6cqw' }, 'transparent', { border: `3cqw solid ${b}` })} />
+        <div style={disc(13, { left: '8cqw', bottom: '14cqw' }, c)} />
+      </>
+    )
+  }
+  // 'arc' (default) — one big sweeping disc + a soft accompanying circle
+  return (
+    <>
+      <div style={disc(106, { right: '-28cqw', bottom: '-34cqw' }, a)} />
+      <div style={disc(30, { left: '-8cqw', bottom: '-4cqw' }, b)} />
+      <div style={disc(10, { left: '20cqw', bottom: '12cqw' }, c)} />
+    </>
+  )
 }
 
 export function ThemePreviewFrame({ theme, meta = {}, className }: { theme: ThemeInput; meta?: PreviewMeta; className?: string }) {
   const t = resolveTheme(theme)
   useThemeFonts(t)
-  const g = paletteGradient(t, 145)
-  const on = g.on
-  const onSoft = alpha(on, 0.66)
+  const shape = meta.shape ?? 'arc'
+  const on = t.ink
+  const onSoft = t.inkSoft
 
   const headline = meta.headline ?? (meta.durationSec ? `A ${meta.durationSec}-second launch, in motion` : 'Your product, in motion')
   const sub = meta.sub ?? 'See how your type & colour carry across a real frame.'
   const productKey = meta.product ?? 'headphones'
   const productSrc = productKey === 'none' ? '' : (THEME_PRODUCTS[productKey] ?? productKey)
 
-  // two-tone headline — bold lead, softer tail (the gradient-card look).
+  // two-tone headline — bold lead, accent tail.
   const hw = headline.split(' ')
   const cut = Math.ceil(hw.length / 2)
   const lead = hw.slice(0, cut).join(' ')
   const tail = hw.slice(cut).join(' ')
 
   return (
-    <div className={className} style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', background: g.css, color: on, containerType: 'inline-size' as const }}>
-      {/* atmosphere */}
-      <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(82% 56% at 14% 2%, rgba(255,255,255,0.2), transparent 56%)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, transparent 44%, ${alpha('#000000', on === '#ffffff' ? 0.34 : 0.08)} 100%)`, pointerEvents: 'none' }} />
+    <div className={className} style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', background: t.surface, color: on, containerType: 'inline-size' as const }}>
+      {/* big colour shapes — the palette, expressed graphically */}
+      <PreviewShapes variant={shape} t={t} />
 
-      {/* product cutout — seated bottom-right, bleeding off the edge */}
+      {/* product cutout — seated bottom-right, on top of the shapes */}
       {productSrc && (
-        <>
-          <div style={{ position: 'absolute', right: '2cqw', bottom: '0cqw', width: '74cqw', height: '50cqw', background: 'radial-gradient(50% 50% at 60% 70%, rgba(255,255,255,0.22), transparent 70%)', pointerEvents: 'none' }} />
-          <img src={productSrc} alt="" style={{ position: 'absolute', right: '-8cqw', bottom: '-6cqw', width: '68cqw', height: 'auto', filter: `drop-shadow(0 8cqw 10cqw ${alpha('#000000', 0.42)})`, pointerEvents: 'none' }} />
-        </>
+        <img src={productSrc} alt="" style={{ position: 'absolute', right: '-8cqw', bottom: '-6cqw', width: '66cqw', height: 'auto', zIndex: 1, filter: `drop-shadow(0 8cqw 11cqw ${alpha('#000000', 0.4)})`, pointerEvents: 'none' }} />
       )}
 
-      {/* hero copy — title face + body face, top-left */}
-      <div style={{ position: 'relative', zIndex: 2, padding: '10cqw 8.5cqw', display: 'flex', flexDirection: 'column', gap: '4cqw', maxWidth: '72%' }}>
-        <div style={{ fontFamily: t.titleStack, fontWeight: 700, fontSize: '11.5cqw', lineHeight: 1.0, letterSpacing: '-0.025em' }}>
-          <span style={{ color: on }}>{lead}</span>{tail && <> <span style={{ color: alpha(on, 0.5) }}>{tail}</span></>}
+      {/* hero copy — title face + body face, top band (clear of the shapes) */}
+      <div style={{ position: 'relative', zIndex: 2, padding: '9cqw 8.5cqw', display: 'flex', flexDirection: 'column', gap: '3.6cqw', maxWidth: '86%' }}>
+        <div style={{ fontFamily: t.titleStack, fontWeight: 700, fontSize: '11cqw', lineHeight: 1.02, letterSpacing: '-0.025em' }}>
+          <span style={{ color: on }}>{lead}</span>{tail && <> <span style={{ color: t.accent }}>{tail}</span></>}
         </div>
-        <div style={{ fontFamily: t.bodyStack, fontSize: '3.6cqw', lineHeight: 1.5, color: onSoft }}>{sub}</div>
+        <div style={{ fontFamily: t.bodyStack, fontSize: '3.5cqw', lineHeight: 1.5, color: onSoft, maxWidth: '64%' }}>{sub}</div>
       </div>
     </div>
-  )
-}
-
-function Arrow({ color }: { color: string }) {
-  return (
-    <svg viewBox="0 0 16 16" fill="none" style={{ width: '3cqw', height: '3cqw' }} aria-hidden>
-      <path d="M3 8h9M8.5 4l4 4-4 4" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
   )
 }

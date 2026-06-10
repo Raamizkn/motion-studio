@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Glow · Top — Theme Thumbnail (standalone export)</title>
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  THEME THUMBNAIL · "GLOW · TOP"  —  self-contained, deterministic, no-LLM
+  ════════════════════════════════════════════════════════════════════════════
+
+  A square gallery thumbnail. The palette is shown as a soft light-bloom from the
+  TOP of the card, fading into a contrasting black/white field; the theme name is
+  set in the title font, with a font caption in the body font.
+
+  HOW TO MAKE A NEW THEME  ───────────────────────────────────────────────────
+  Nothing is generated. You only supply a config object; the colours & fonts are
+  swapped straight into CSS variables:
+
+      {
+        name:       "Midnight Product",   // shown big, uppercased
+        titleFont:  "Outfit",             // headline / name typeface
+        bodyFont:   "Inter",              // caption typeface
+        surface:    "#0a0a0c",            // the brand's base surface  ← decides DARK vs LIGHT
+        primary:    "#ffffff",            //  ┐
+        secondary:  "#8a3ffc",            //  │  the 4 palette colours
+        tertiary:   "#a56eff",            //  │  (primary is usually the ink;
+        accent:     "#4e7bff"             //  ┘   secondary/tertiary/accent are the brand hues)
+      }
+
+  DARK vs LIGHT  ──────────────────────────────────────────────────────────────
+  `surface` luminance decides the mode (relative luminance < 0.42 ⇒ dark):
+    • DARK  → field = near-black (#08080b), text = white,  bloom has a white-hot core.
+    • LIGHT → field = near-white (#fbfbfc), text = near-black, bloom is the raw hues fading to white.
+  So the SAME config renders correctly whether the brand is a dark or a light theme —
+  just give it a dark or light `surface`.
+
+  WHICH COLOURS DRIVE THE BLOOM  ──────────────────────────────────────────────
+  The two most-saturated palette colours become the bloom's inner→outer hues
+  (`a` = hot core hue, `b` = outer ring). Near-neutral colours (black/white/grey)
+  are skipped, so a monochrome palette still glows from its one accent (the outer
+  stop is then a tint of that hue toward the surface).
+
+  FONTS  ──────────────────────────────────────────────────────────────────────
+  `titleFont`/`bodyFont` are any family name. Google fonts are auto-loaded on
+  demand; system families (Helvetica Neue, Arial, Times New Roman, Georgia…) are
+  used as-is. A fallback stack (serif vs sans vs mono) is inferred from the name.
+
+  Everything below the THEME CONFIGS array is the reusable engine — copy the
+  <style> block + buildGlowTop() into any page and feed it configs.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #0e0e10; color: #e9e9ec;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    padding: 40px clamp(20px, 5vw, 64px) 80px;
+  }
+  h1 { font-size: 24px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: #9a9aa2; font-size: 14px; margin: 0 0 28px; max-width: 720px; line-height: 1.55; }
+
+  /* ── config legend ─────────────────────────────────────────────────────── */
+  .legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 0 0 36px; }
+  .legend .card { border: 1px solid #232327; border-radius: 12px; padding: 14px 16px; background: #161618; }
+  .legend h3 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #b8b8c0; }
+  .legend p { margin: 0; font-size: 13px; line-height: 1.5; color: #8d8d96; }
+  code { font-family: 'Sometype Mono', ui-monospace, monospace; color: #cdb8ff; font-size: 12.5px; }
+
+  /* ── the 20-up grid ────────────────────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 22px; }
+  .cell { display: flex; flex-direction: column; gap: 9px; }
+  .cell .meta { font-size: 12px; color: #8d8d96; line-height: 1.4; }
+  .cell .meta b { color: #d6d6dc; font-weight: 600; }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     THE THUMBNAIL TEMPLATE — 100% driven by CSS custom properties.
+     To theme it, set --field / --bloom / --text / --text-soft / --title-font /
+     --body-font on the .glow-top element. (buildGlowTop() does this for you.)
+     ══════════════════════════════════════════════════════════════════════════ */
+  .glow-top {
+    position: relative; width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 16px; overflow: hidden;
+    background: var(--field);
+    container-type: inline-size;          /* cqw units scale with the card width */
+  }
+  .glow-top .bloom { position: absolute; inset: 0; background: var(--bloom); }
+  .glow-top .copy {
+    position: absolute; inset: 0; padding: 11cqw 10cqw;
+    display: flex; flex-direction: column; justify-content: flex-end; /* bottom — clear of the top bloom */
+    gap: 2.6cqw;
+  }
+  .glow-top .name {
+    max-width: 82%;
+    font-family: var(--title-font); font-weight: 800; font-size: 10.5cqw;
+    line-height: 1.05; letter-spacing: 0.015em; text-transform: uppercase;
+    color: var(--text); overflow-wrap: break-word;
+  }
+  .glow-top .fonts {
+    font-family: var(--body-font); font-size: 5.2cqw; color: var(--text-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+</style>
+</head>
+<body>
+  <h1>Theme thumbnail · <em>Glow · Top</em></h1>
+  <p class="sub">Deterministic, no-LLM. Each card below is the same template fed a different config — only the
+  4 palette colours, the 2 fonts, the surface (dark/light) and the name change. Resize the window to see the
+  container-query type scale.</p>
+
+  <div class="legend">
+    <div class="card"><h3>Surface → mode</h3><p><code>surface</code> luminance &lt; 0.42 ⇒ <b>dark</b> (black field, white text). Otherwise <b>light</b> (white field, black text).</p></div>
+    <div class="card"><h3>Bloom colours</h3><p>The 2 most-saturated of <code>primary/secondary/tertiary/accent</code> become the bloom’s core → ring. Neutrals are skipped.</p></div>
+    <div class="card"><h3>Fonts</h3><p><code>titleFont</code> sets the name, <code>bodyFont</code> the caption. Google fonts auto-load; system fonts used as-is.</p></div>
+    <div class="card"><h3>To add a theme</h3><p>Push a config to <code>THEMES</code>. No regeneration — colours &amp; fonts swap into CSS variables.</p></div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+/* ════════════════════════════════════════════════════════════════════════════
+   ENGINE  (colour maths + font loading + builder) — framework-free, copy-paste.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── colour maths ─────────────────────────────────────────────────────────── */
+function parseHex(h) {
+  if (!h) return null;
+  h = String(h).trim().replace(/^#/, '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length === 8) h = h.slice(0, 6);
+  if (!/^[0-9a-f]{6}$/i.test(h)) return null;
+  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+}
+function toHex({r,g,b}) {
+  const c = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2,'0');
+  return `#${c(r)}${c(g)}${c(b)}`;
+}
+function lum(hex) {
+  const p = parseHex(hex); if (!p) return 0;
+  const ch = v => { const s = v/255; return s <= 0.03928 ? s/12.92 : ((s+0.055)/1.055)**2.4; };
+  return 0.2126*ch(p.r) + 0.7152*ch(p.g) + 0.0722*ch(p.b);
+}
+const isDark = hex => lum(hex) < 0.42;
+function mix(a, b, t) {
+  const x = parseHex(a), y = parseHex(b); if (!x || !y) return a;
+  return toHex({ r: x.r+(y.r-x.r)*t, g: x.g+(y.g-x.g)*t, b: x.b+(y.b-x.b)*t });
+}
+function alpha(hex, a) {
+  const p = parseHex(hex); if (!p) return `rgba(0,0,0,${a})`;
+  return `rgba(${p.r},${p.g},${p.b},${a})`;
+}
+function chromatic(hex) {
+  const p = parseHex(hex); if (!p) return false;
+  const max = Math.max(p.r,p.g,p.b), min = Math.min(p.r,p.g,p.b);
+  const l = (max+min)/2/255;
+  const sat = max === min ? 0 : (max-min)/(255-Math.abs(2*((max+min)/2)-255));
+  return sat > 0.16 && l > 0.06 && l < 0.97;
+}
+/* pick the two bloom hues: most-saturated first, neutrals filtered out */
+function bloomColors(cfg, surface) {
+  const uniq = arr => { const s = new Set(), o = []; for (const c of arr) { const k = (c||'').toLowerCase(); if (c && !s.has(k)) { s.add(k); o.push(c); } } return o; };
+  const chroma = uniq([cfg.accent, cfg.secondary, cfg.tertiary, cfg.primary].filter(chromatic));
+  const a = chroma[0] || cfg.accent || cfg.secondary || '#888888';
+  const b = chroma[1] || mix(a, surface, 0.5);
+  return [a, b];
+}
+
+/* ── fonts ────────────────────────────────────────────────────────────────── */
+const SYSTEM = new Set(['helvetica','helvetica neue','arial','arial black','system-ui','-apple-system','times','times new roman','georgia','courier','courier new','verdana','tahoma','garamond','sans-serif','serif','monospace']);
+const FETCHED = new Set();
+function ensureFont(family) {
+  const f = (family||'').trim(); if (!f) return;
+  const key = f.toLowerCase();
+  if (SYSTEM.has(key) || FETCHED.has(key)) return;
+  FETCHED.add(key);
+  const fam = encodeURIComponent(f).replace(/%20/g,'+');
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${fam}:wght@400;500;600;700;800;900&display=swap`;
+  link.onerror = () => { // single-weight families (e.g. Archivo Black) → plain request
+    const plain = document.createElement('link');
+    plain.rel = 'stylesheet';
+    plain.href = `https://fonts.googleapis.com/css2?family=${fam}&display=swap`;
+    document.head.appendChild(plain);
+  };
+  document.head.appendChild(link);
+}
+function fontStack(family) {
+  const f = (family||'').trim(); const lc = f.toLowerCase();
+  const q = /\s/.test(f) ? `'${f}'` : f;
+  if (/(mono|code|consol|courier)/.test(lc)) return `${q}, ui-monospace, monospace`;
+  if (/(serif|times|georgia|garamond|playfair|lora|merriweather|libre|fraunces|spectral|cormorant)/.test(lc))
+    return `${q}, Georgia, 'Times New Roman', serif`;
+  return `${q}, 'Inter', system-ui, -apple-system, sans-serif`;
+}
+
+/* ── builder: config → <div class="glow-top"> ──────────────────────────────── */
+function buildGlowTop(cfg) {
+  const dark = isDark(cfg.surface);
+  const field = dark ? '#08080b' : '#fbfbfc';
+  const text  = dark ? '#ffffff' : '#0c0c0e';
+  const [a, b] = bloomColors(cfg, cfg.surface);
+  // bloom rises from the TOP (50% -16%) and fades into the field
+  const bloom = dark
+    ? `radial-gradient(135% 92% at 50% -16%, rgba(255,255,255,0.92), ${a} 22%, ${b} 48%, transparent 78%)`
+    : `radial-gradient(135% 92% at 50% -16%, ${a}, ${b} 44%, transparent 74%)`;
+
+  ensureFont(cfg.titleFont); ensureFont(cfg.bodyFont);
+
+  const el = document.createElement('div');
+  el.className = 'glow-top';
+  el.style.setProperty('--field', field);
+  el.style.setProperty('--bloom', bloom);
+  el.style.setProperty('--text', text);
+  el.style.setProperty('--text-soft', alpha(text, 0.6));
+  el.style.setProperty('--title-font', fontStack(cfg.titleFont));
+  el.style.setProperty('--body-font', fontStack(cfg.bodyFont));
+  el.innerHTML =
+    `<div class="bloom"></div>` +
+    `<div class="copy">` +
+      `<div class="name">${cfg.name}</div>` +
+      `<div class="fonts">${cfg.titleFont} · ${cfg.bodyFont}</div>` +
+    `</div>`;
+  return el;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   THEME CONFIGS — 20 variations (mix of dark & light surfaces, varied fonts).
+   Add/edit freely; everything else above is generic.
+   ════════════════════════════════════════════════════════════════════════════ */
+const THEMES = [
+  { name:'Editorial Press', titleFont:'Source Serif 4', bodyFont:'DM Sans', surface:'#F5F2EC', primary:'#141414', secondary:'#3B5BDB', tertiary:'#8A8575', accent:'#E8590C' },
+  { name:'Midnight Product', titleFont:'Outfit', bodyFont:'Inter', surface:'#0a0a0c', primary:'#ffffff', secondary:'#8a3ffc', tertiary:'#a56eff', accent:'#4e7bff' },
+  { name:'Sunrise Bold', titleFont:'Outfit', bodyFont:'DM Sans', surface:'#FFF8F0', primary:'#1a1208', secondary:'#FF6B35', tertiary:'#F7B801', accent:'#7B2FF7' },
+  { name:'Mono Minimal', titleFont:'Outfit', bodyFont:'Inter', surface:'#0d0d0d', primary:'#fafafa', secondary:'#fafafa', tertiary:'#6a6a6a', accent:'#d4af37' },
+  { name:'Aurora Labs', titleFont:'Space Grotesk', bodyFont:'Inter', surface:'#070b14', primary:'#eaf2ff', secondary:'#22d3ee', tertiary:'#6366f1', accent:'#f472b6' },
+  { name:'Greenhouse', titleFont:'Outfit', bodyFont:'DM Sans', surface:'#fbfdf6', primary:'#10241a', secondary:'#16a34a', tertiary:'#84cc16', accent:'#f59e0b' },
+  { name:'Helvetica Co', titleFont:'Helvetica Neue', bodyFont:'Helvetica Neue', surface:'#0d0d0d', primary:'#ffffff', secondary:'#ffffff', tertiary:'#6a6a6a', accent:'#c0a062' },
+  { name:'Rosewood', titleFont:'Source Serif 4', bodyFont:'DM Sans', surface:'#fdf7f4', primary:'#2a1416', secondary:'#b91c1c', tertiary:'#9a3412', accent:'#0f766e' },
+  { name:'Cobalt', titleFont:'Space Grotesk', bodyFont:'Inter', surface:'#070a12', primary:'#eaf0ff', secondary:'#2563eb', tertiary:'#38bdf8', accent:'#06b6d4' },
+  { name:'Bloom', titleFont:'Fraunces', bodyFont:'Inter', surface:'#fdf4fb', primary:'#2a0f24', secondary:'#d6409f', tertiary:'#f06595', accent:'#7c3aed' },
+  { name:'Carbon', titleFont:'Archivo Black', bodyFont:'Inter', surface:'#0b0b0c', primary:'#ffffff', secondary:'#9aa0a6', tertiary:'#5f6368', accent:'#34d399' },
+  { name:'Sandstone', titleFont:'Playfair Display', bodyFont:'DM Sans', surface:'#f6efe2', primary:'#3a2a18', secondary:'#c2683a', tertiary:'#caa44b', accent:'#5a7d5a' },
+  { name:'Neon Tokyo', titleFont:'Space Grotesk', bodyFont:'Inter', surface:'#0a0612', primary:'#f5f0ff', secondary:'#ff2d95', tertiary:'#21e6c1', accent:'#ffd23f' },
+  { name:'Forest', titleFont:'Fraunces', bodyFont:'Inter', surface:'#08130d', primary:'#eef7ee', secondary:'#2f9e44', tertiary:'#66a80f', accent:'#e8b339' },
+  { name:'Coral Reef', titleFont:'Poppins', bodyFont:'Inter', surface:'#f4fafb', primary:'#0c2230', secondary:'#ff6f61', tertiary:'#14b8a6', accent:'#f4a259' },
+  { name:'Royal', titleFont:'Playfair Display', bodyFont:'Inter', surface:'#0b0a1a', primary:'#f3e9c6', secondary:'#3b4cca', tertiary:'#7c3aed', accent:'#d4af37' },
+  { name:'Mint Studio', titleFont:'Outfit', bodyFont:'Inter', surface:'#f3fbf7', primary:'#0f1f1a', secondary:'#10b981', tertiary:'#2dd4bf', accent:'#1f2937' },
+  { name:'Ember', titleFont:'Archivo Black', bodyFont:'Inter', surface:'#120807', primary:'#fff1ec', secondary:'#ef4444', tertiary:'#f97316', accent:'#f59e0b' },
+  { name:'Lavender Field', titleFont:'DM Serif Display', bodyFont:'DM Sans', surface:'#f7f5fd', primary:'#211a33', secondary:'#7c5cff', tertiary:'#b794f6', accent:'#3b82f6' },
+  { name:'Slate Ops', titleFont:'Inter', bodyFont:'Inter', surface:'#0c1014', primary:'#e8eef5', secondary:'#64748b', tertiary:'#94a3b8', accent:'#22d3ee' },
+];
+
+/* ── render the 20-up ──────────────────────────────────────────────────────── */
+const grid = document.getElementById('grid');
+for (const cfg of THEMES) {
+  const cell = document.createElement('div');
+  cell.className = 'cell';
+  cell.appendChild(buildGlowTop(cfg));
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.innerHTML = `<b>${cfg.name}</b> · ${isDark(cfg.surface) ? 'dark' : 'light'}<br>${cfg.titleFont} / ${cfg.bodyFont}`;
+  cell.appendChild(meta);
+  grid.appendChild(cell);
+}
+</script>
+</body>
+</html>
