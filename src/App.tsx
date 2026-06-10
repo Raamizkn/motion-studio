@@ -5,6 +5,7 @@ import { ProjectSetup } from './pages/ProjectSetup'
 import { FlowSetup } from './pages/FlowSetup'
 import { GenerateScreen } from './pages/GenerateScreen'
 import { VideoEditor } from './pages/VideoEditor'
+import { ThemeLab } from './pages/ThemeLab'
 import { Icon } from './components/Icon'
 import { Link } from 'react-router-dom'
 
@@ -266,6 +267,7 @@ export function App() {
         <Route path="/studio/projects/:id/storyboard" element={<RedirectToGenerate />} />
         {/* Editor runs inside the director workspace shell (sidebar + topnav) */}
         <Route path="/studio/projects/:id/editor" element={<Shell><VideoEditor /></Shell>} />
+        <Route path="/theme-lab" element={<ThemeLab />} />
         <Route path="*" element={<Shell><Placeholder /></Shell>} />
       </Routes>
     </BrowserRouter>
