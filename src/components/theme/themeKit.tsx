@@ -508,6 +508,10 @@ export function ThemeThumb({ theme, radius = 16, variant = 'priority' }: { theme
 // organic blobs, a sweeping arc, a colour-blocked panel, or orbiting circles.
 // Uniform across themes; only the colours and the two typefaces change.
 //   meta.shape: 'arc' (default) · 'blobs' · 'panel' · 'orbit'
+//   meta.glow: 'bottom' | 'corner' | 'spot' | 'side' | 'wide' — uses the glow
+//     thumbnail logic instead (black/white field + palette bloom + contrasting
+//     text), with the product seated in the bloom. Overrides `shape`.
+export type GlowPreview = 'bottom' | 'corner' | 'spot' | 'side' | 'wide'
 export interface PreviewMeta {
   headline?: string
   sub?: string
@@ -515,6 +519,18 @@ export interface PreviewMeta {
   /** 'headphones' | 'airpods' | a URL | 'none' */
   product?: ProductKey | 'none' | string
   shape?: 'arc' | 'blobs' | 'panel' | 'orbit'
+  glow?: GlowPreview
+}
+
+// Glow-preview configs — bloom geometry + where the product is seated so it
+// always sits IN the bloom (reads on both black and white fields). textMax
+// keeps the headline clear of the bloom/product.
+const GLOW_PV: Record<GlowPreview, { x: string; y: string; w: string; h: string; prod: React.CSSProperties; textMax: string; star?: boolean }> = {
+  bottom: { x: '52%', y: '108%', w: '140%', h: '86%', prod: { right: '-6cqw', bottom: '-8cqw', width: '68cqw' }, textMax: '72%' },
+  corner: { x: '94%', y: '104%', w: '116%', h: '104%', prod: { right: '-6cqw', bottom: '-8cqw', width: '68cqw' }, textMax: '58%' },
+  spot: { x: '64%', y: '70%', w: '78%', h: '70%', prod: { right: '4cqw', bottom: '-6cqw', width: '60cqw' }, textMax: '62%', star: true },
+  side: { x: '106%', y: '58%', w: '82%', h: '136%', prod: { right: '-8cqw', bottom: '-4cqw', width: '66cqw' }, textMax: '50%' },
+  wide: { x: '56%', y: '112%', w: '160%', h: '78%', prod: { right: '-4cqw', bottom: '-8cqw', width: '70cqw' }, textMax: '72%' },
 }
 
 // Three brand colours for the big shapes — falls back to accent tints when a
@@ -588,6 +604,38 @@ export function ThemePreviewFrame({ theme, meta = {}, className }: { theme: Them
   const cut = Math.ceil(hw.length / 2)
   const lead = hw.slice(0, cut).join(' ')
   const tail = hw.slice(cut).join(' ')
+
+  // ── glow mode — black/white field + palette bloom + product seated in it ──
+  if (meta.glow) {
+    const cfg = GLOW_PV[meta.glow]
+    const field = t.dark ? '#08080b' : '#fbfbfc'
+    const txt = t.dark ? '#ffffff' : '#0c0c0e'
+    const txtSoft = alpha(txt, 0.6)
+    const [a, b] = shapeColors(t)
+    // colored glow (no white-hot core — the white product stays the brightest thing)
+    const bloom = t.dark
+      ? `radial-gradient(${cfg.w} ${cfg.h} at ${cfg.x} ${cfg.y}, ${a}, ${mix(b, field, 0.28)} 54%, transparent 82%)`
+      : `radial-gradient(${cfg.w} ${cfg.h} at ${cfg.x} ${cfg.y}, ${a}, ${b} 52%, transparent 80%)`
+    return (
+      <div className={className} style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', background: field, color: txt, containerType: 'inline-size' as const }}>
+        <div style={{ position: 'absolute', inset: 0, background: bloom, pointerEvents: 'none' }} />
+        {cfg.star && (
+          <svg viewBox="0 0 24 24" style={{ position: 'absolute', left: '14cqw', bottom: '20cqw', width: '9cqw', height: '9cqw', filter: 'drop-shadow(0 0 5cqw rgba(255,255,255,0.85))', zIndex: 1 }} aria-hidden>
+            <path d="M12 0c1 6 5 10 11 12-6 2-10 6-11 12-1-6-5-10-11-12C7 10 11 6 12 0Z" fill="#fff" />
+          </svg>
+        )}
+        {productSrc && (
+          <img src={productSrc} alt="" style={{ position: 'absolute', ...cfg.prod, height: 'auto', zIndex: 1, filter: `drop-shadow(0 8cqw 12cqw ${alpha('#000000', t.dark ? 0.55 : 0.3)})`, pointerEvents: 'none' }} />
+        )}
+        <div style={{ position: 'relative', zIndex: 2, padding: '9cqw 8.5cqw', display: 'flex', flexDirection: 'column', gap: '3.6cqw', maxWidth: cfg.textMax }}>
+          <div style={{ fontFamily: t.titleStack, fontWeight: 700, fontSize: '11cqw', lineHeight: 1.02, letterSpacing: '-0.025em' }}>
+            <span style={{ color: txt }}>{lead}</span>{tail && <> <span style={{ color: t.accent }}>{tail}</span></>}
+          </div>
+          <div style={{ fontFamily: t.bodyStack, fontSize: '3.5cqw', lineHeight: 1.5, color: txtSoft }}>{sub}</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={className} style={{ position: 'relative', width: '100%', height: '100%', minHeight: 0, overflow: 'hidden', background: t.surface, color: on, containerType: 'inline-size' as const }}>

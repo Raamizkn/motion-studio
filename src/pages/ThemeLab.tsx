@@ -33,6 +33,7 @@ const VARIANTS: { id: ThumbVariant; label: string }[] = [
 ]
 
 const SHAPES: NonNullable<Parameters<typeof ThemePreviewFrame>[0]['meta']>['shape'][] = ['arc', 'blobs', 'panel', 'orbit']
+const GLOW_PVS: NonNullable<Parameters<typeof ThemePreviewFrame>[0]['meta']>['glow'][] = ['bottom', 'corner', 'spot', 'side', 'wide']
 
 export function ThemeLab() {
   const themes = [...BUILTIN_THEMES, ...EXTRA]
@@ -58,6 +59,23 @@ export function ThemeLab() {
           {themes.map((t) => <div key={t.id} style={{ width: 96 }}><ThemeThumb theme={fromVibeTheme(t)} variant="priority" radius={12} /></div>)}
         </div>
       </section>
+
+      {/* Glow previews — glow-thumbnail logic, white airpods seated in the bloom */}
+      {GLOW_PVS.map((glow) => (
+        <section key={glow} style={{ marginBottom: 40 }}>
+          <h2 style={heading}>Glow preview · {glow} · airpods</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+            {themes.map((t) => (
+              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ height: 470, borderRadius: 18, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  <ThemePreviewFrame theme={fromVibeTheme(t)} meta={{ durationSec: 15, product: 'airpods', glow }} />
+                </div>
+                <span style={{ fontSize: 12, color: 'var(--text-3)' }}>{t.name} · {t.titleFont} / {t.bodyFont}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
 
       {/* Preview shape variants — big shapes carry the palette */}
       {SHAPES.map((shape) => (
